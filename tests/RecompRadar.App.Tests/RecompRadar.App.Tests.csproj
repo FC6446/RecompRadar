@@ -1,0 +1,31 @@
+<Project Sdk="Microsoft.NET.Sdk">
+
+  <PropertyGroup>
+    <TargetFramework>net10.0-windows</TargetFramework>
+    <UseWPF>true</UseWPF>
+    <Nullable>enable</Nullable>
+    <ImplicitUsings>enable</ImplicitUsings>
+    <IsPackable>false</IsPackable>
+  </PropertyGroup>
+
+  <ItemGroup>
+    <PackageReference Include="coverlet.collector" Version="6.0.4" />
+    <PackageReference Include="Microsoft.NET.Test.Sdk" Version="17.14.1" />
+    <PackageReference Include="xunit" Version="2.9.3" />
+    <PackageReference Include="xunit.runner.visualstudio" Version="3.1.4" />
+  </ItemGroup>
+
+  <ItemGroup>
+    <Using Include="Xunit" />
+    <Using Include="System.IO" />
+  </ItemGroup>
+
+  <ItemGroup>
+    <ProjectReference Include="..\..\src\RecompRadar.App\RecompRadar.App.csproj" />
+    <ProjectReference Include="..\..\src\RecompRadar.Core\RecompRadar.Core.csproj" />
+    <ProjectReference Include="..\..\src\RecompRadar.Infrastructure\RecompRadar.Infrastructure.csproj" />
+    <ProjectReference Include="..\..\src\RecompRadar.Portability\RecompRadar.Portability.csproj" />
+    <ProjectReference Include="..\RecompRadar.TestSupport\RecompRadar.TestSupport.csproj" />
+  </ItemGroup>
+
+</Project>

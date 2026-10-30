@@ -1,0 +1,33 @@
+<Project Sdk="Microsoft.NET.Sdk">
+
+  <PropertyGroup>
+    <OutputType>WinExe</OutputType>
+    <TargetFramework>net10.0-windows</TargetFramework>
+    <UseWPF>true</UseWPF>
+    <AssemblyName>RecompRadar</AssemblyName>
+    <RootNamespace>RecompRadar.App</RootNamespace>
+    <ApplicationIcon>Assets\RecompRadar.ico</ApplicationIcon>
+    <Nullable>enable</Nullable>
+    <ImplicitUsings>enable</ImplicitUsings>
+  </PropertyGroup>
+
+  <ItemGroup>
+    <ProjectReference Include="..\RecompRadar.Core\RecompRadar.Core.csproj" />
+    <ProjectReference Include="..\RecompRadar.BinaryAnalysis\RecompRadar.BinaryAnalysis.csproj" />
+    <ProjectReference Include="..\RecompRadar.Architectures\RecompRadar.Architectures.csproj" />
+    <ProjectReference Include="..\RecompRadar.Portability\RecompRadar.Portability.csproj" />
+    <ProjectReference Include="..\RecompRadar.Infrastructure\RecompRadar.Infrastructure.csproj" />
+    <ProjectReference Include="..\RecompRadar.Recompilation\RecompRadar.Recompilation.csproj" />
+  </ItemGroup>
+
+  <ItemGroup>
+    <PackageReference Include="CommunityToolkit.Mvvm" Version="8.4.2" />
+    <PackageReference Include="Microsoft.Extensions.DependencyInjection" Version="10.0.14" />
+    <PackageReference Include="Microsoft.Extensions.Logging" Version="10.0.14" />
+  </ItemGroup>
+
+  <ItemGroup>
+    <Resource Include="Assets\RecompRadar.png" />
+  </ItemGroup>
+
+</Project>

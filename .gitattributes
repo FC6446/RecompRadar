@@ -1,0 +1,14 @@
+# Normalise text files, but never touch binaries. The sample files are compared byte for byte by a test,
+# so line-ending conversion must not be applied to them (not_an_elf.bin is plain text on purpose).
+* text=auto
+*.cs text diff=csharp
+*.xaml text
+*.json text
+*.md text
+*.ps1 text
+*.sln text eol=crlf
+
+samples/*.elf binary
+samples/*.bin binary
+*.png binary
+*.ico binary

@@ -1,0 +1,207 @@
+<UserControl x:Class="RecompRadar.App.Views.ReportView"
+             xmlns="http://schemas.microsoft.com/winfx/2006/xaml/presentation"
+             xmlns:x="http://schemas.microsoft.com/winfx/2006/xaml">
+    <Grid>
+        <Border Style="{StaticResource Card}" VerticalAlignment="Top" Visibility="{Binding HasResult, Converter={StaticResource InvertedBoolToVisibility}}">
+            <StackPanel>
+                <TextBlock Text="No report yet" Style="{StaticResource H3}" />
+                <TextBlock Style="{StaticResource Muted}" Margin="0,6,0,0"
+                           Text="Analyze a file in the Binary Analyzer (or open a saved project) and the technical portability report is created here. It can be exported as JSON, Markdown or HTML." />
+            </StackPanel>
+        </Border>
+
+        <ScrollViewer VerticalScrollBarVisibility="Auto" Visibility="{Binding HasResult, Converter={StaticResource BoolToVisibility}}">
+            <StackPanel Margin="0,0,14,0">
+
+                <!-- Status + actions -->
+                <Border CornerRadius="14" Padding="20,16" Margin="0,0,0,14" BorderThickness="1"
+                        Background="{Binding StatusKind, Converter={StaticResource StatusKindToBrush}, ConverterParameter=soft}"
+                        BorderBrush="{Binding StatusKind, Converter={StaticResource StatusKindToBrush}}">
+                    <Grid>
+                        <Grid.ColumnDefinitions>
+                            <ColumnDefinition Width="*" />
+                            <ColumnDefinition Width="Auto" />
+                        </Grid.ColumnDefinitions>
+                        <StackPanel Margin="0,0,20,0">
+                            <TextBlock Text="{Binding FileName}" Style="{StaticResource Caption}" Foreground="{StaticResource TextMutedBrush}" />
+                            <TextBlock Text="Overall porting status" Style="{StaticResource Caption}" Margin="0,6,0,0" Foreground="{StaticResource TextMutedBrush}" />
+                            <TextBlock Text="{Binding OverallStatus}" FontSize="17" FontWeight="SemiBold" TextWrapping="Wrap" />
+                        </StackPanel>
+                        <StackPanel Grid.Column="1" VerticalAlignment="Center">
+                            <StackPanel Orientation="Horizontal">
+                                <Button Content="Export JSON" Command="{Binding ExportJsonCommand}" Margin="0,0,8,0" />
+                                <Button Content="Export Markdown" Command="{Binding ExportMarkdownCommand}" Margin="0,0,8,0" />
+                                <Button Content="Export HTML" Style="{StaticResource PrimaryButton}" Command="{Binding ExportHtmlCommand}" />
+                            </StackPanel>
+                            <StackPanel Orientation="Horizontal" Margin="0,8,0,0" HorizontalAlignment="Right">
+                                <Button Content="Save as project" Command="{Binding SaveProjectCommand}" Margin="0,0,8,0">
+                                    <Button.Style>
+                                        <Style TargetType="Button" BasedOn="{StaticResource {x:Type Button}}">
+                                            <Style.Triggers>
+                                                <DataTrigger Binding="{Binding IsSaved}" Value="True">
+                                                    <Setter Property="Visibility" Value="Collapsed" />
+                                                </DataTrigger>
+                                            </Style.Triggers>
+                                        </Style>
+                                    </Button.Style>
+                                </Button>
+                                <TextBlock Text="✓ Saved in Projects" Foreground="{StaticResource SuccessBrush}" VerticalAlignment="Center" Margin="0,0,10,0"
+                                           Visibility="{Binding IsSaved, Converter={StaticResource BoolToVisibility}}" />
+                                <Button Content="Show exported file" Command="{Binding RevealExportCommand}"
+                                        Visibility="{Binding HasExport, Converter={StaticResource BoolToVisibility}}" />
+                            </StackPanel>
+                        </StackPanel>
+                    </Grid>
+                </Border>
+
+                <TextBlock Text="{Binding ExportPathText}" Style="{StaticResource Caption}" Margin="4,-6,0,10"
+                           Visibility="{Binding HasExport, Converter={StaticResource BoolToVisibility}}" />
+
+                <!-- Summary table -->
+                <Border Style="{StaticResource Card}" Padding="20,10" Margin="0,0,0,14">
+                    <ItemsControl ItemsSource="{Binding SummaryRows}" ItemTemplate="{StaticResource KeyValueRowTemplate}" />
+                </Border>
+
+                <!-- The six questions -->
+                <Border Style="{StaticResource Card}" Margin="0,0,0,14">
+                    <StackPanel>
+                        <TextBlock Text="The six questions" Style="{StaticResource H3}" />
+                        <ItemsControl ItemsSource="{Binding Questions}" Margin="0,6,0,0">
+                            <ItemsControl.ItemTemplate>
+                                <DataTemplate>
+                                    <StackPanel Margin="0,10,0,0">
+                                        <TextBlock FontWeight="SemiBold" TextWrapping="Wrap"><Run Text="{Binding Number, Mode=OneWay}" /><Run Text=".  " /><Run Text="{Binding Question, Mode=OneWay}" /></TextBlock>
+                                        <TextBlock Text="{Binding Answer}" Style="{StaticResource Muted}" Foreground="{StaticResource TextBrush}" Margin="0,3,0,0" />
+                                        <ItemsControl ItemsSource="{Binding Basis}" Margin="0,3,0,0">
+                                            <ItemsControl.ItemTemplate>
+                                                <DataTemplate>
+                                                    <TextBlock Style="{StaticResource Caption}" Margin="0,1,0,0"><Run Text="–  " /><Run Text="{Binding Mode=OneWay}" /></TextBlock>
+                                                </DataTemplate>
+                                            </ItemsControl.ItemTemplate>
+                                        </ItemsControl>
+                                    </StackPanel>
+                                </DataTemplate>
+                            </ItemsControl.ItemTemplate>
+                        </ItemsControl>
+                    </StackPanel>
+                </Border>
+
+                <Border Style="{StaticResource Card}" Padding="20,14,20,10" Margin="0,0,0,14">
+                    <StackPanel>
+                        <TextBlock Text="Technical findings" Style="{StaticResource H3}" Margin="0,0,0,4" />
+                        <ItemsControl ItemsSource="{Binding Findings}" ItemTemplate="{StaticResource KeyValueRowTemplate}" />
+                    </StackPanel>
+                </Border>
+
+                <Border Style="{StaticResource Card}" Margin="0,0,0,14">
+                    <StackPanel>
+                        <TextBlock Text="Information that is missing" Style="{StaticResource H3}" />
+                        <ItemsControl ItemsSource="{Binding MissingInformation}" Margin="0,8,0,0">
+                            <ItemsControl.ItemTemplate>
+                                <DataTemplate>
+                                    <TextBlock Margin="0,0,0,6" TextWrapping="Wrap"><Run Text="?  " Foreground="{StaticResource WarningBrush}" FontWeight="Bold" /><Run Text="{Binding Mode=OneWay}" /></TextBlock>
+                                </DataTemplate>
+                            </ItemsControl.ItemTemplate>
+                        </ItemsControl>
+                    </StackPanel>
+                </Border>
+
+                <Border Style="{StaticResource Card}" Margin="0,0,0,14">
+                    <StackPanel>
+                        <TextBlock Text="Runtime components that might be required" Style="{StaticResource H3}" />
+                        <TextBlock Text="None could be derived from the analysis." Margin="0,6,0,0">
+                            <TextBlock.Style>
+                                <Style TargetType="TextBlock" BasedOn="{StaticResource Muted}">
+                                    <Setter Property="Visibility" Value="Collapsed" />
+                                    <Style.Triggers>
+                                        <DataTrigger Binding="{Binding RuntimeComponents.Count}" Value="0">
+                                            <Setter Property="Visibility" Value="Visible" />
+                                        </DataTrigger>
+                                    </Style.Triggers>
+                                </Style>
+                            </TextBlock.Style>
+                        </TextBlock>
+                        <ItemsControl ItemsSource="{Binding RuntimeComponents}" Margin="0,8,0,0">
+                            <ItemsControl.ItemTemplate>
+                                <DataTemplate>
+                                    <Grid Margin="0,0,0,10">
+                                        <Grid.ColumnDefinitions>
+                                            <ColumnDefinition Width="*" />
+                                            <ColumnDefinition Width="Auto" />
+                                        </Grid.ColumnDefinitions>
+                                        <StackPanel>
+                                            <TextBlock Text="{Binding Name}" FontWeight="SemiBold" TextWrapping="Wrap" />
+                                            <TextBlock Text="{Binding Reason}" Style="{StaticResource Muted}" Margin="0,2,0,0" />
+                                        </StackPanel>
+                                        <ContentControl Grid.Column="1" Content="{Binding Evidence}" ContentTemplate="{StaticResource EvidenceBadge}" VerticalAlignment="Top" Margin="12,2,0,0" />
+                                    </Grid>
+                                </DataTemplate>
+                            </ItemsControl.ItemTemplate>
+                        </ItemsControl>
+                    </StackPanel>
+                </Border>
+
+                <Border Style="{StaticResource Card}" Margin="0,0,0,14">
+                    <StackPanel>
+                        <TextBlock Text="Suggested work plan" Style="{StaticResource H3}" />
+                        <ItemsControl ItemsSource="{Binding WorkSteps}" Margin="0,8,0,0">
+                            <ItemsControl.ItemTemplate>
+                                <DataTemplate>
+                                    <Grid Margin="0,0,0,10">
+                                        <Grid.ColumnDefinitions>
+                                            <ColumnDefinition Width="34" />
+                                            <ColumnDefinition Width="*" />
+                                        </Grid.ColumnDefinitions>
+                                        <Border Width="24" Height="24" CornerRadius="12" Background="{StaticResource AccentSoftBrush}" VerticalAlignment="Top" HorizontalAlignment="Left">
+                                            <TextBlock Text="{Binding Number}" FontSize="12" FontWeight="SemiBold" Foreground="{StaticResource AccentBrush}" HorizontalAlignment="Center" VerticalAlignment="Center" />
+                                        </Border>
+                                        <StackPanel Grid.Column="1">
+                                            <TextBlock Text="{Binding Title}" FontWeight="SemiBold" />
+                                            <TextBlock Text="{Binding Description}" Style="{StaticResource Muted}" Margin="0,2,0,0" Visibility="{Binding Description, Converter={StaticResource StringToVisibility}}" />
+                                        </StackPanel>
+                                    </Grid>
+                                </DataTemplate>
+                            </ItemsControl.ItemTemplate>
+                        </ItemsControl>
+                    </StackPanel>
+                </Border>
+
+                <Border Style="{StaticResource Card}" Margin="0,0,0,14">
+                    <StackPanel>
+                        <TextBlock Text="Warnings from the analysis" Style="{StaticResource H3}" />
+                        <ItemsControl ItemsSource="{Binding Warnings}" Margin="0,8,0,0">
+                            <ItemsControl.ItemTemplate>
+                                <DataTemplate>
+                                    <Border Margin="0,0,0,8" Padding="12,9" CornerRadius="9" BorderThickness="1" BorderBrush="{StaticResource BorderBrush}" Background="{StaticResource SurfaceRaisedBrush}">
+                                        <StackPanel>
+                                            <StackPanel Orientation="Horizontal">
+                                                <TextBlock Text="{Binding Severity}" FontWeight="SemiBold" Foreground="{Binding Severity, Converter={StaticResource SeverityToBrush}}" />
+                                                <TextBlock Text="{Binding Code}" Style="{StaticResource Caption}" FontFamily="{StaticResource MonoFont}" Margin="10,2,0,0" />
+                                            </StackPanel>
+                                            <TextBlock Text="{Binding Message}" TextWrapping="Wrap" Margin="0,3,0,0" />
+                                            <TextBlock Text="{Binding Explanation}" Style="{StaticResource Muted}" Margin="0,3,0,0" Visibility="{Binding Explanation, Converter={StaticResource StringToVisibility}}" />
+                                        </StackPanel>
+                                    </Border>
+                                </DataTemplate>
+                            </ItemsControl.ItemTemplate>
+                        </ItemsControl>
+                        <TextBlock Text="None – the file structure is consistent." Margin="0,4,0,0">
+                            <TextBlock.Style>
+                                <Style TargetType="TextBlock" BasedOn="{StaticResource Muted}">
+                                    <Setter Property="Visibility" Value="Collapsed" />
+                                    <Style.Triggers>
+                                        <DataTrigger Binding="{Binding Warnings.Count}" Value="0">
+                                            <Setter Property="Visibility" Value="Visible" />
+                                        </DataTrigger>
+                                    </Style.Triggers>
+                                </Style>
+                            </TextBlock.Style>
+                        </TextBlock>
+                    </StackPanel>
+                </Border>
+
+                <TextBlock Text="{Binding Disclaimer}" Style="{StaticResource Caption}" Margin="4,0,0,8" />
+            </StackPanel>
+        </ScrollViewer>
+    </Grid>
+</UserControl>

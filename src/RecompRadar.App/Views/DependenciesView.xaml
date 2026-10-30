@@ -1,0 +1,164 @@
+<UserControl x:Class="RecompRadar.App.Views.DependenciesView"
+             xmlns="http://schemas.microsoft.com/winfx/2006/xaml/presentation"
+             xmlns:x="http://schemas.microsoft.com/winfx/2006/xaml">
+    <Grid>
+        <Border Style="{StaticResource Card}" VerticalAlignment="Top" Visibility="{Binding HasResult, Converter={StaticResource InvertedBoolToVisibility}}">
+            <StackPanel>
+                <TextBlock Text="No dependencies to show yet" Style="{StaticResource H3}" />
+                <TextBlock Style="{StaticResource Muted}" Margin="0,6,0,0"
+                           Text="Analyze an ELF file in the Binary Analyzer (or open a saved project). Libraries, imported symbols and recognised API names appear here." />
+            </StackPanel>
+        </Border>
+
+        <Grid Visibility="{Binding HasResult, Converter={StaticResource BoolToVisibility}}">
+            <Grid.RowDefinitions>
+                <RowDefinition Height="Auto" />
+                <RowDefinition Height="Auto" />
+                <RowDefinition Height="*" />
+            </Grid.RowDefinitions>
+
+            <TextBlock Text="{Binding Summary}" Style="{StaticResource Muted}" Margin="0,0,0,10" />
+
+            <Border Grid.Row="1" CornerRadius="12" Padding="16,12" Margin="0,0,0,12" BorderThickness="1"
+                    Background="{StaticResource WarningSoftBrush}" BorderBrush="{StaticResource WarningBrush}"
+                    Visibility="{Binding NoSymbols, Converter={StaticResource BoolToVisibility}}">
+                <StackPanel>
+                    <TextBlock Text="No symbols in this file" FontWeight="SemiBold" FontSize="15" />
+                    <TextBlock Style="{StaticResource Muted}" Foreground="{StaticResource TextBrush}" Margin="0,4,0,0"
+                               Text="The file is stripped or uses a symbol format RecompRadar does not read, so function names and imports are unavailable. Only embedded strings could be checked. Nothing is guessed to fill the gap." />
+                </StackPanel>
+            </Border>
+
+            <TabControl Grid.Row="2">
+                <TabItem Header="Known APIs">
+                    <Border Style="{StaticResource Card}" Padding="0" ClipToBounds="True">
+                        <Grid>
+                            <TextBlock Text="No names in this file matched the knowledge base. This does not mean the program has no dependencies – only that none are recognised."
+                                       Margin="20" VerticalAlignment="Top">
+                                <TextBlock.Style>
+                                    <Style TargetType="TextBlock" BasedOn="{StaticResource Muted}">
+                                        <Setter Property="Visibility" Value="Collapsed" />
+                                        <Style.Triggers>
+                                            <DataTrigger Binding="{Binding ApiMatches.Count}" Value="0">
+                                                <Setter Property="Visibility" Value="Visible" />
+                                            </DataTrigger>
+                                        </Style.Triggers>
+                                    </Style>
+                                </TextBlock.Style>
+                            </TextBlock>
+                            <DataGrid ItemsSource="{Binding ApiMatches}">
+                                <DataGrid.Columns>
+                                    <DataGridTextColumn Header="Name" Binding="{Binding Name}" Width="2*" ElementStyle="{StaticResource MonoCell}" />
+                                    <DataGridTextColumn Header="Found as" Binding="{Binding Source}" Width="120" />
+                                    <DataGridTextColumn Header="Category" Binding="{Binding Category}" Width="130" />
+                                    <DataGridTextColumn Header="API family" Binding="{Binding ApiFamily}" Width="2*" ElementStyle="{StaticResource WrapCell}" />
+                                    <DataGridTextColumn Header="Platform hints" Binding="{Binding Platforms}" Width="*" />
+                                </DataGrid.Columns>
+                            </DataGrid>
+                        </Grid>
+                    </Border>
+                </TabItem>
+
+                <TabItem Header="Libraries">
+                    <Border Style="{StaticResource Card}" Padding="20,10">
+                        <Grid>
+                            <TextBlock Text="The dynamic section lists no needed libraries (or the file has no dynamic section – for example a statically linked program)."
+                                       VerticalAlignment="Top" Margin="0,8">
+                                <TextBlock.Style>
+                                    <Style TargetType="TextBlock" BasedOn="{StaticResource Muted}">
+                                        <Setter Property="Visibility" Value="Collapsed" />
+                                        <Style.Triggers>
+                                            <DataTrigger Binding="{Binding Libraries.Count}" Value="0">
+                                                <Setter Property="Visibility" Value="Visible" />
+                                            </DataTrigger>
+                                        </Style.Triggers>
+                                    </Style>
+                                </TextBlock.Style>
+                            </TextBlock>
+                            <ScrollViewer VerticalScrollBarVisibility="Auto">
+                                <ItemsControl ItemsSource="{Binding Libraries}">
+                                    <ItemsControl.ItemTemplate>
+                                        <DataTemplate>
+                                            <Grid Margin="0,8">
+                                                <Grid.ColumnDefinitions>
+                                                    <ColumnDefinition Width="*" />
+                                                    <ColumnDefinition Width="*" />
+                                                </Grid.ColumnDefinitions>
+                                                <TextBlock Text="{Binding Name}" Style="{StaticResource Mono}" TextWrapping="Wrap" />
+                                                <TextBlock Grid.Column="1" Text="{Binding Detail}" Style="{StaticResource Muted}" />
+                                            </Grid>
+                                        </DataTemplate>
+                                    </ItemsControl.ItemTemplate>
+                                </ItemsControl>
+                            </ScrollViewer>
+                        </Grid>
+                    </Border>
+                </TabItem>
+
+                <TabItem Header="Imported symbols">
+                    <Border Style="{StaticResource Card}" Padding="0" ClipToBounds="True">
+                        <Grid>
+                            <Grid.RowDefinitions>
+                                <RowDefinition Height="Auto" />
+                                <RowDefinition Height="*" />
+                            </Grid.RowDefinitions>
+                            <TextBox Margin="16,14,16,8" Text="{Binding ImportFilter, UpdateSourceTrigger=PropertyChanged}" Tag="Filter imports by name…" />
+                            <DataGrid Grid.Row="1" ItemsSource="{Binding ImportsView}">
+                                <DataGrid.Columns>
+                                    <DataGridTextColumn Header="Imported symbol" Binding="{Binding Name}" Width="2*" ElementStyle="{StaticResource MonoCell}" />
+                                    <DataGridTextColumn Header="Recognised as" Binding="{Binding Detail}" Width="*" />
+                                </DataGrid.Columns>
+                            </DataGrid>
+                        </Grid>
+                    </Border>
+                </TabItem>
+
+                <TabItem Header="Hardware hints">
+                    <Border Style="{StaticResource Card}" Padding="0" ClipToBounds="True">
+                        <Grid>
+                            <TextBlock Text="No references to hardware access were found. Hardware access done directly through memory addresses cannot be seen without disassembly."
+                                       Margin="20" VerticalAlignment="Top">
+                                <TextBlock.Style>
+                                    <Style TargetType="TextBlock" BasedOn="{StaticResource Muted}">
+                                        <Setter Property="Visibility" Value="Collapsed" />
+                                        <Style.Triggers>
+                                            <DataTrigger Binding="{Binding HardwareHints.Count}" Value="0">
+                                                <Setter Property="Visibility" Value="Visible" />
+                                            </DataTrigger>
+                                        </Style.Triggers>
+                                    </Style>
+                                </TextBlock.Style>
+                            </TextBlock>
+                            <DataGrid ItemsSource="{Binding HardwareHints}">
+                                <DataGrid.Columns>
+                                    <DataGridTextColumn Header="Name" Binding="{Binding Name}" Width="*" ElementStyle="{StaticResource MonoCell}" />
+                                    <DataGridTextColumn Header="Found as" Binding="{Binding Source}" Width="110" />
+                                    <DataGridTextColumn Header="What it means" Binding="{Binding Description}" Width="2*" ElementStyle="{StaticResource WrapCell}" />
+                                </DataGrid.Columns>
+                            </DataGrid>
+                        </Grid>
+                    </Border>
+                </TabItem>
+
+                <TabItem Header="Notes">
+                    <Border Style="{StaticResource Card}">
+                        <ScrollViewer VerticalScrollBarVisibility="Auto">
+                            <StackPanel>
+                                <ItemsControl ItemsSource="{Binding Notes}">
+                                    <ItemsControl.ItemTemplate>
+                                        <DataTemplate>
+                                            <TextBlock Margin="0,0,0,8" TextWrapping="Wrap"><Run Text="•  " Foreground="{StaticResource AccentBrush}" /><Run Text="{Binding Mode=OneWay}" /></TextBlock>
+                                        </DataTemplate>
+                                    </ItemsControl.ItemTemplate>
+                                </ItemsControl>
+                                <TextBlock Style="{StaticResource Caption}" Margin="0,8,0,0">
+                                    <Run Text="Knowledge base:  " /><Run Text="{Binding KnowledgeBase, Mode=OneWay}" />
+                                </TextBlock>
+                            </StackPanel>
+                        </ScrollViewer>
+                    </Border>
+                </TabItem>
+            </TabControl>
+        </Grid>
+    </Grid>
+</UserControl>

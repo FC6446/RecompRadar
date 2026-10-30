@@ -1,0 +1,32 @@
+﻿<Project Sdk="Microsoft.NET.Sdk">
+
+  <PropertyGroup>
+    <TargetFramework>net10.0</TargetFramework>
+    <ImplicitUsings>enable</ImplicitUsings>
+    <Nullable>enable</Nullable>
+    <IsPackable>false</IsPackable>
+  </PropertyGroup>
+
+  <ItemGroup>
+    <PackageReference Include="coverlet.collector" Version="6.0.4" />
+    <PackageReference Include="Microsoft.Extensions.Logging" Version="10.0.14" />
+    <PackageReference Include="Microsoft.NET.Test.Sdk" Version="17.14.1" />
+    <PackageReference Include="xunit" Version="2.9.3" />
+    <PackageReference Include="xunit.runner.visualstudio" Version="3.1.4" />
+  </ItemGroup>
+
+  <ItemGroup>
+    <Using Include="Xunit" />
+  </ItemGroup>
+
+  <ItemGroup>
+    <ProjectReference Include="..\..\src\RecompRadar.Core\RecompRadar.Core.csproj" />
+    <ProjectReference Include="..\..\src\RecompRadar.BinaryAnalysis\RecompRadar.BinaryAnalysis.csproj" />
+    <ProjectReference Include="..\..\src\RecompRadar.Architectures\RecompRadar.Architectures.csproj" />
+    <ProjectReference Include="..\..\src\RecompRadar.Portability\RecompRadar.Portability.csproj" />
+    <ProjectReference Include="..\..\src\RecompRadar.Infrastructure\RecompRadar.Infrastructure.csproj" />
+    <ProjectReference Include="..\..\src\RecompRadar.Recompilation\RecompRadar.Recompilation.csproj" />
+    <ProjectReference Include="..\RecompRadar.TestSupport\RecompRadar.TestSupport.csproj" />
+  </ItemGroup>
+
+</Project>

@@ -1,0 +1,120 @@
+<UserControl x:Class="RecompRadar.App.Views.ProjectsView"
+             xmlns="http://schemas.microsoft.com/winfx/2006/xaml/presentation"
+             xmlns:x="http://schemas.microsoft.com/winfx/2006/xaml">
+    <Grid>
+        <Grid.ColumnDefinitions>
+            <ColumnDefinition Width="*" MinWidth="320" />
+            <ColumnDefinition Width="380" />
+        </Grid.ColumnDefinitions>
+
+        <!-- List -->
+        <Grid Margin="0,0,16,0">
+            <Grid.RowDefinitions>
+                <RowDefinition Height="Auto" />
+                <RowDefinition Height="*" />
+            </Grid.RowDefinitions>
+            <Grid Margin="0,0,0,10">
+                <Grid.ColumnDefinitions>
+                    <ColumnDefinition Width="*" />
+                    <ColumnDefinition Width="Auto" />
+                </Grid.ColumnDefinitions>
+                <TextBox Text="{Binding Filter, UpdateSourceTrigger=PropertyChanged}" Tag="Search by name, file, architecture or hash…" />
+                <TextBlock Grid.Column="1" Text="{Binding CountText}" Style="{StaticResource Caption}" VerticalAlignment="Center" Margin="14,0,0,0" />
+            </Grid>
+
+            <Border Grid.Row="1" Style="{StaticResource Card}" VerticalAlignment="Top" Visibility="{Binding IsEmpty, Converter={StaticResource BoolToVisibility}}">
+                <StackPanel>
+                    <TextBlock Text="No saved projects yet" Style="{StaticResource H3}" />
+                    <TextBlock Style="{StaticResource Muted}" Margin="0,6,0,0"
+                               Text="Every successfully analyzed file is saved here automatically (you can switch this off in Settings). Only the analysis results are stored – the analyzed file itself is never copied." />
+                </StackPanel>
+            </Border>
+
+            <ListBox Grid.Row="1" ItemsSource="{Binding Projects}" SelectedItem="{Binding Selected, Mode=TwoWay}"
+                     Visibility="{Binding IsEmpty, Converter={StaticResource InvertedBoolToVisibility}}">
+                <ListBox.ItemTemplate>
+                    <DataTemplate>
+                        <Grid>
+                            <Grid.ColumnDefinitions>
+                                <ColumnDefinition Width="*" />
+                                <ColumnDefinition Width="Auto" />
+                            </Grid.ColumnDefinitions>
+                            <StackPanel>
+                                <TextBlock Text="{Binding Name}" FontWeight="SemiBold" FontSize="14" TextTrimming="CharacterEllipsis" />
+                                <TextBlock Style="{StaticResource Caption}" TextTrimming="CharacterEllipsis" Margin="0,2,0,0">
+                                    <Run Text="{Binding Architecture, Mode=OneWay}" /><Run Text="   ·   " /><Run Text="{Binding FileName, Mode=OneWay}" />
+                                </TextBlock>
+                                <TextBlock Text="{Binding OverallStatus}" Style="{StaticResource Caption}" TextTrimming="CharacterEllipsis" Margin="0,2,0,0" Foreground="{StaticResource TextMutedBrush}" />
+                            </StackPanel>
+                            <TextBlock Grid.Column="1" Text="{Binding AnalyzedAtUtc, StringFormat='{}{0:g}'}" Style="{StaticResource Caption}" VerticalAlignment="Top" Margin="12,2,0,0" />
+                        </Grid>
+                    </DataTemplate>
+                </ListBox.ItemTemplate>
+            </ListBox>
+        </Grid>
+
+        <!-- Details -->
+        <Border Grid.Column="1" Style="{StaticResource Card}" VerticalAlignment="Top">
+            <Grid>
+                <TextBlock Text="Select a project to see its details, rename it or add notes.">
+                    <TextBlock.Style>
+                        <Style TargetType="TextBlock" BasedOn="{StaticResource Muted}">
+                            <Setter Property="Visibility" Value="Collapsed" />
+                            <Style.Triggers>
+                                <DataTrigger Binding="{Binding Selected}" Value="{x:Null}">
+                                    <Setter Property="Visibility" Value="Visible" />
+                                </DataTrigger>
+                            </Style.Triggers>
+                        </Style>
+                    </TextBlock.Style>
+                </TextBlock>
+
+                <StackPanel Visibility="{Binding Selected, Converter={StaticResource NullToVisibility}}">
+                    <TextBlock Text="Project name" Style="{StaticResource Caption}" />
+                    <TextBox Text="{Binding EditName, UpdateSourceTrigger=PropertyChanged}" Margin="0,4,0,12" />
+
+                    <TextBlock Text="Notes" Style="{StaticResource Caption}" />
+                    <TextBox Text="{Binding EditNotes, UpdateSourceTrigger=PropertyChanged}" Margin="0,4,0,12" AcceptsReturn="True" TextWrapping="Wrap" MinHeight="84" MaxHeight="160" VerticalScrollBarVisibility="Auto" Tag="Your own notes…" />
+
+                    <Grid Margin="0,0,0,12">
+                        <Grid.ColumnDefinitions>
+                            <ColumnDefinition Width="96" />
+                            <ColumnDefinition Width="*" />
+                        </Grid.ColumnDefinitions>
+                        <Grid.RowDefinitions>
+                            <RowDefinition Height="Auto" />
+                            <RowDefinition Height="Auto" />
+                            <RowDefinition Height="Auto" />
+                            <RowDefinition Height="Auto" />
+                            <RowDefinition Height="Auto" />
+                            <RowDefinition Height="Auto" />
+                        </Grid.RowDefinitions>
+                        <TextBlock Text="File" Style="{StaticResource Caption}" Margin="0,3" />
+                        <TextBlock Grid.Column="1" Text="{Binding Selected.FilePath}" TextWrapping="Wrap" FontFamily="{StaticResource MonoFont}" FontSize="11.5" Margin="0,3" />
+                        <TextBlock Grid.Row="1" Text="Size" Style="{StaticResource Caption}" Margin="0,3" />
+                        <TextBlock Grid.Row="1" Grid.Column="1" Text="{Binding Selected.FileSizeBytes, StringFormat='{}{0:N0} bytes'}" Margin="0,3" />
+                        <TextBlock Grid.Row="2" Text="SHA-256" Style="{StaticResource Caption}" Margin="0,3" />
+                        <TextBlock Grid.Row="2" Grid.Column="1" Text="{Binding Selected.Sha256}" TextWrapping="Wrap" FontFamily="{StaticResource MonoFont}" FontSize="11.5" Margin="0,3" />
+                        <TextBlock Grid.Row="3" Text="Format" Style="{StaticResource Caption}" Margin="0,3" />
+                        <TextBlock Grid.Row="3" Grid.Column="1" Text="{Binding Selected.FileFormat}" TextWrapping="Wrap" Margin="0,3" />
+                        <TextBlock Grid.Row="4" Text="Analyzed" Style="{StaticResource Caption}" Margin="0,3" />
+                        <TextBlock Grid.Row="4" Grid.Column="1" Text="{Binding Selected.AnalyzedAtUtc, StringFormat='{}{0:F}'}" TextWrapping="Wrap" Margin="0,3" />
+                        <TextBlock Grid.Row="5" Text="Last report" Style="{StaticResource Caption}" Margin="0,3" />
+                        <TextBlock Grid.Row="5" Grid.Column="1" Text="{Binding Selected.ReportPath, TargetNullValue='not exported yet'}" TextWrapping="Wrap" FontSize="11.5" Margin="0,3" />
+                    </Grid>
+
+                    <TextBlock Text="The original file is no longer at its saved location. The stored analysis can still be opened, but the entry point preview needs the file."
+                               Style="{StaticResource Caption}" Foreground="{StaticResource WarningBrush}" Margin="0,0,0,12"
+                               Visibility="{Binding FileMissing, Converter={StaticResource BoolToVisibility}}" />
+
+                    <StackPanel Orientation="Horizontal">
+                        <Button Content="Open" Style="{StaticResource PrimaryButton}" Command="{Binding OpenSelectedCommand}" Margin="0,0,8,0" />
+                        <Button Content="Save changes" Command="{Binding SaveChangesCommand}" Margin="0,0,8,0" />
+                        <Button Content="Delete" Command="{Binding DeleteSelectedCommand}" Foreground="{StaticResource DangerBrush}" />
+                    </StackPanel>
+                    <Button Content="Show last report in folder" Command="{Binding RevealReportCommand}" Margin="0,8,0,0" HorizontalAlignment="Left" />
+                </StackPanel>
+            </Grid>
+        </Border>
+    </Grid>
+</UserControl>

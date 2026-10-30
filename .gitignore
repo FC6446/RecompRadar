@@ -1,0 +1,83 @@
+# Build output
+[Bb]in/
+[Oo]bj/
+[Ll]og/
+[Ll]ogs/
+artifacts/
+publish/
+*.nupkg
+
+# IDE / editor
+.vs/
+.vscode/
+.idea/
+*.user
+*.suo
+*.userprefs
+*.DotSettings.user
+launchSettings.json.user
+
+# Test and coverage output
+TestResults/
+coverage/
+*.trx
+*.coverage
+*.coveragexml
+
+# RecompRadar runtime data (never commit local analysis databases or logs)
+*.db
+*.db-shm
+*.db-wal
+*.sqlite
+*.sqlite3
+*.jsonl
+settings.local.json
+
+# Secrets - must never be committed
+.env
+.env.*
+*.pfx
+*.snk
+*.pem
+*.key
+*.p12
+*.p8
+secrets.json
+appsettings.*.local.json
+
+# Third-party / protected content - must never be committed
+# (commercial games, BIOS, firmware, console keys, dumps)
+*.iso
+*.cue
+*.bin.bak
+*.bios
+*.nca
+*.xci
+*.nsp
+*.pkg
+*.sfo
+*.pbp
+*.self
+*.sprx
+*.prx
+*.rvz
+*.wbfs
+*.gcm
+*.dol
+keys.txt
+prod.keys
+title.keys
+bios/
+firmware/
+dumps/
+roms/
+
+# OS
+Thumbs.db
+desktop.ini
+.DS_Store
+
+# Local scratch
+scratch/
+tmp/
+*.tmp
