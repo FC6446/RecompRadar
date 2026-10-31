@@ -17,8 +17,9 @@ public sealed class MipsPocPlugin : IRecompilerPlugin
     public string DisplayName => "MIPS32 proof of concept (integer subset)";
 
     public string Description =>
-        "Decodes and translates a small integer subset of 32-bit MIPS into a 32-bit IR and runs it on a reference interpreter. " +
-        "Intended for self-made test programs. No FPU, no HI/LO registers, no coprocessors, no console system interfaces.";
+        "Decodes and translates the integer, HI/LO and single-precision FPU subset of 32-bit MIPS into a 32-bit IR, runs it on a reference interpreter " +
+        "and can generate a Windows executable from it. Intended for self-made test programs. No branch-likely instructions, no unaligned loads/stores, " +
+        "no 128-bit multimedia (MMI) or vector unit instructions, no console system interfaces.";
 
     public PluginCapabilities Capabilities =>
         PluginCapabilities.Loader | PluginCapabilities.Decoder | PluginCapabilities.Translator | PluginCapabilities.Runtime | PluginCapabilities.Backend;

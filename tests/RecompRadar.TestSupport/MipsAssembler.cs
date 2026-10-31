@@ -5,7 +5,7 @@ public static class Reg
 {
     public const int Zero = 0, At = 1, V0 = 2, V1 = 3, A0 = 4, A1 = 5, A2 = 6, A3 = 7;
     public const int T0 = 8, T1 = 9, T2 = 10, T3 = 11, T4 = 12, T5 = 13, T6 = 14, T7 = 15;
-    public const int S0 = 16, S1 = 17, Sp = 29, Ra = 31;
+    public const int S0 = 16, S1 = 17, S2 = 18, S3 = 19, S4 = 20, S5 = 21, S6 = 22, S7 = 23, T8 = 24, T9 = 25, Gp = 28, Fp = 30, Sp = 29, Ra = 31;
 }
 
 /// <summary>
@@ -135,6 +135,98 @@ public sealed class MipsProgram
 
     /// <summary>Loads a 32-bit constant with lui + ori (always two instructions).</summary>
     public MipsProgram Li32(int rt, uint value) => Lui(rt, (int)(value >> 16)).Ori(rt, rt, (int)(value & 0xFFFF));
+
+    // ---- HI/LO, conditional moves, wrapping add/sub, linking branches ----
+    public MipsProgram Add(int rd, int rs, int rt) => R(0x20, rd, rs, rt);
+
+    public MipsProgram Sub(int rd, int rs, int rt) => R(0x22, rd, rs, rt);
+
+    public MipsProgram Addi(int rt, int rs, int imm) => I(0x08, rt, rs, imm);
+
+    public MipsProgram Mult(int rs, int rt) => R(0x18, 0, rs, rt);
+
+    public MipsProgram Multu(int rs, int rt) => R(0x19, 0, rs, rt);
+
+    public MipsProgram Div(int rs, int rt) => R(0x1A, 0, rs, rt);
+
+    public MipsProgram Divu(int rs, int rt) => R(0x1B, 0, rs, rt);
+
+    public MipsProgram Mfhi(int rd) => R(0x10, rd, 0, 0);
+
+    public MipsProgram Mflo(int rd) => R(0x12, rd, 0, 0);
+
+    public MipsProgram Mthi(int rs) => R(0x11, 0, rs, 0);
+
+    public MipsProgram Mtlo(int rs) => R(0x13, 0, rs, 0);
+
+    public MipsProgram Movz(int rd, int rs, int rt) => R(0x0A, rd, rs, rt);
+
+    public MipsProgram Movn(int rd, int rs, int rt) => R(0x0B, rd, rs, rt);
+
+    public MipsProgram Break() => Word(0x0D);
+
+    public MipsProgram Bltzal(int rs, string label) => Branch(0x01, rs, 0x10, label);
+
+    public MipsProgram Bgezal(int rs, string label) => Branch(0x01, rs, 0x11, label);
+
+    /// <summary>Branch-likely: valid MIPS, but not translated by RecompRadar yet (used to test the unsupported-instruction report).</summary>
+    public MipsProgram Beql(int rs, int rt, string label) => Branch(0x14, rs, rt, label);
+
+    // ---- single-precision FPU (COP1) ----
+    private MipsProgram Cop1(int fmt, int ft, int fs, int fd, uint funct) =>
+        Word((0x11u << 26) | ((uint)fmt << 21) | ((uint)ft << 16) | ((uint)fs << 11) | ((uint)fd << 6) | funct);
+
+    public MipsProgram Mfc1(int rt, int fs) => Cop1(0, rt, fs, 0, 0);
+
+    public MipsProgram Mtc1(int rt, int fs) => Cop1(4, rt, fs, 0, 0);
+
+    public MipsProgram Lwc1(int ft, int offset, int rs) => I(0x31, ft, rs, offset);
+
+    public MipsProgram Swc1(int ft, int offset, int rs) => I(0x39, ft, rs, offset);
+
+    public MipsProgram AddS(int fd, int fs, int ft) => Cop1(16, ft, fs, fd, 0x00);
+
+    public MipsProgram SubS(int fd, int fs, int ft) => Cop1(16, ft, fs, fd, 0x01);
+
+    public MipsProgram MulS(int fd, int fs, int ft) => Cop1(16, ft, fs, fd, 0x02);
+
+    public MipsProgram DivS(int fd, int fs, int ft) => Cop1(16, ft, fs, fd, 0x03);
+
+    public MipsProgram SqrtS(int fd, int fs) => Cop1(16, 0, fs, fd, 0x04);
+
+    public MipsProgram AbsS(int fd, int fs) => Cop1(16, 0, fs, fd, 0x05);
+
+    public MipsProgram MovS(int fd, int fs) => Cop1(16, 0, fs, fd, 0x06);
+
+    public MipsProgram NegS(int fd, int fs) => Cop1(16, 0, fs, fd, 0x07);
+
+    public MipsProgram TruncWS(int fd, int fs) => Cop1(16, 0, fs, fd, 0x0D);
+
+    public MipsProgram CvtWS(int fd, int fs) => Cop1(16, 0, fs, fd, 0x24);
+
+    public MipsProgram CvtSW(int fd, int fs) => Cop1(20, 0, fs, fd, 0x20);
+
+    public MipsProgram CEqS(int fs, int ft) => Cop1(16, ft, fs, 0, 0x32);
+
+    public MipsProgram CLtS(int fs, int ft) => Cop1(16, ft, fs, 0, 0x34);
+
+    public MipsProgram CLeS(int fs, int ft) => Cop1(16, ft, fs, 0, 0x36);
+
+    public MipsProgram Bc1t(string label) => Branch(0x11, 8, 1, label);
+
+    public MipsProgram Bc1f(string label) => Branch(0x11, 8, 0, label);
+
+    // ---- calls into RecompRadar's PoC system call ABI (number in $v0, argument in $a0 / $f12) ----
+    public MipsProgram PrintInt(int reg) => Move(Reg.A0, reg).Addiu(Reg.V0, Reg.Zero, 3).Syscall();
+
+    public MipsProgram PrintString(uint address) => Li32(Reg.A0, address).Addiu(Reg.V0, Reg.Zero, 5).Syscall();
+
+    public MipsProgram PrintFloat(int fpr) => MovS(12, fpr).Addiu(Reg.V0, Reg.Zero, 4).Syscall();
+
+    public MipsProgram ExitWith(int code) => Addiu(Reg.A0, Reg.Zero, code).Addiu(Reg.V0, Reg.Zero, 1).Syscall();
+
+    /// <summary>The address a label gets when the program is assembled at <paramref name="baseAddress"/>.</summary>
+    public ulong AddressOf(string label, ulong baseAddress) => baseAddress + ((ulong)_labels[label] * 4);
 
     public uint[] Assemble(ulong baseAddress)
     {

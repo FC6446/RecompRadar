@@ -1,5 +1,6 @@
 using System.Buffers.Binary;
 using RecompRadar.Core.Model;
+using RecompRadar.Recompilation.IR;
 
 namespace RecompRadar.Recompilation.Execution;
 
@@ -17,7 +18,7 @@ public sealed class GuestFaultException : Exception
 /// </summary>
 public sealed class GuestMachine : IMemoryReader
 {
-    public const int RegisterCount = 64;
+    public const int RegisterCount = Regs.Count;
     public const uint StackBase = 0x7FFE0000;
     public const uint StackSize = 0x10000;
 
