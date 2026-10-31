@@ -45,6 +45,7 @@ internal static class Program
         string status;
         int exitCode;
         string? message = null;
+        var clock = System.Diagnostics.Stopwatch.StartNew();
         try
         {
             Recompiled.Run(cpu, entry);
@@ -76,6 +77,7 @@ internal static class Program
             message = limitReached.Message;
         }
 
+        clock.Stop();
         stdout.Flush();
         if (message is not null)
         {
@@ -84,13 +86,13 @@ internal static class Program
 
         if (reportPath is not null)
         {
-            WriteReport(reportPath, status, exitCode, message, cpu);
+            WriteReport(reportPath, status, exitCode, message, cpu, clock.Elapsed.TotalMilliseconds);
         }
 
         return exitCode;
     }
 
-    private static void WriteReport(string path, string status, int exitCode, string? message, Cpu cpu)
+    private static void WriteReport(string path, string status, int exitCode, string? message, Cpu cpu, double elapsedMilliseconds)
     {
         using var stream = File.Create(path);
         using var json = new Utf8JsonWriter(stream, new JsonWriterOptions { Indented = true });
@@ -98,6 +100,7 @@ internal static class Program
         json.WriteString("status", status);
         json.WriteNumber("exitCode", exitCode);
         json.WriteNumber("instructionsExecuted", cpu.Executed);
+        json.WriteNumber("elapsedMilliseconds", elapsedMilliseconds);
         if (message is null)
         {
             json.WriteNull("message");

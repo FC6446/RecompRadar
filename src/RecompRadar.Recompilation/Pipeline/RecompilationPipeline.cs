@@ -68,7 +68,7 @@ public sealed class RecompileResult
 
     public string? ExecutablePath { get; init; }
 
-    public string? ReportPath { get; internal set; }
+    public string? ReportPath { get; set; }
 
     /// <summary>Null when the program may be started; otherwise the exact reason it may not.</summary>
     public string? PlayBlockedReason

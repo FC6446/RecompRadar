@@ -1,0 +1,234 @@
+<UserControl x:Class="RecompRadar.App.Views.RecompilerView"
+             xmlns="http://schemas.microsoft.com/winfx/2006/xaml/presentation"
+             xmlns:x="http://schemas.microsoft.com/winfx/2006/xaml">
+    <Grid>
+        <Border Style="{StaticResource Card}" VerticalAlignment="Top" Visibility="{Binding HasFile, Converter={StaticResource InvertedBoolToVisibility}}">
+            <StackPanel>
+                <TextBlock Text="Nothing to recompile yet" Style="{StaticResource H3}" />
+                <TextBlock Style="{StaticResource Muted}" Margin="0,6,0,0"
+                           Text="Analyze an ELF file in the Binary Analyzer (or open a saved project). The compatibility check and the build controls appear here. Only files RecompRadar can translate can be built." />
+            </StackPanel>
+        </Border>
+
+        <ScrollViewer VerticalScrollBarVisibility="Auto" Visibility="{Binding HasFile, Converter={StaticResource BoolToVisibility}}">
+            <StackPanel Margin="0,0,14,0">
+
+                <!-- ===== Input and target system ===== -->
+                <Border Style="{StaticResource Card}" Margin="0,0,0,14">
+                    <StackPanel>
+                        <TextBlock Text="Input and target system" Style="{StaticResource H3}" />
+                        <TextBlock Text="{Binding FileText}" Margin="0,8,0,0" TextWrapping="Wrap" />
+                        <TextBlock Text="Target system" Style="{StaticResource Muted}" Margin="0,14,0,6" />
+                        <ListBox ItemsSource="{Binding PlatformChoices}" SelectedItem="{Binding SelectedPlatform, Mode=TwoWay}" Margin="0,0,0,0">
+                            <ListBox.ItemsPanel>
+                                <ItemsPanelTemplate>
+                                    <WrapPanel Orientation="Horizontal" />
+                                </ItemsPanelTemplate>
+                            </ListBox.ItemsPanel>
+                            <ListBox.ItemContainerStyle>
+                                <Style TargetType="ListBoxItem" BasedOn="{StaticResource {x:Type ListBoxItem}}">
+                                    <Setter Property="Margin" Value="0,0,8,0" />
+                                </Style>
+                            </ListBox.ItemContainerStyle>
+                            <ListBox.ItemTemplate>
+                                <DataTemplate>
+                                    <TextBlock Text="{Binding Label}" />
+                                </DataTemplate>
+                            </ListBox.ItemTemplate>
+                        </ListBox>
+                        <TextBlock Style="{StaticResource Caption}" Margin="0,2,0,0"
+                                   Text="Choosing a system only selects which backend is checked. It does not change the file and cannot make an unsupported program supported." />
+                    </StackPanel>
+                </Border>
+
+                <!-- ===== Compatibility ===== -->
+                <Border Style="{StaticResource Card}" Margin="0,0,0,14">
+                    <StackPanel>
+                        <TextBlock Text="Compatibility" Style="{StaticResource H3}" />
+                        <StackPanel Orientation="Horizontal" Margin="0,10,0,0">
+                            <Border CornerRadius="9" Padding="10,3" BorderThickness="1" VerticalAlignment="Center">
+                                <Border.Style>
+                                    <Style TargetType="Border">
+                                        <Setter Property="BorderBrush" Value="{StaticResource BorderBrush}" />
+                                        <Style.Triggers>
+                                            <DataTrigger Binding="{Binding Level}" Value="Experimental">
+                                                <Setter Property="BorderBrush" Value="{StaticResource WarningBrush}" />
+                                                <Setter Property="Background" Value="{StaticResource WarningSoftBrush}" />
+                                            </DataTrigger>
+                                            <DataTrigger Binding="{Binding Level}" Value="Unsupported">
+                                                <Setter Property="BorderBrush" Value="{StaticResource DangerBrush}" />
+                                                <Setter Property="Background" Value="{StaticResource DangerSoftBrush}" />
+                                            </DataTrigger>
+                                            <DataTrigger Binding="{Binding Level}" Value="Supported">
+                                                <Setter Property="BorderBrush" Value="{StaticResource SuccessBrush}" />
+                                                <Setter Property="Background" Value="{StaticResource SuccessSoftBrush}" />
+                                            </DataTrigger>
+                                            <DataTrigger Binding="{Binding Level}" Value="PartiallySupported">
+                                                <Setter Property="BorderBrush" Value="{StaticResource WarningBrush}" />
+                                                <Setter Property="Background" Value="{StaticResource WarningSoftBrush}" />
+                                            </DataTrigger>
+                                        </Style.Triggers>
+                                    </Style>
+                                </Border.Style>
+                                <TextBlock Text="{Binding Level}" FontWeight="SemiBold" />
+                            </Border>
+                            <TextBlock Text="{Binding Headline}" Margin="12,0,0,0" VerticalAlignment="Center" TextWrapping="Wrap" />
+                        </StackPanel>
+                        <TextBlock Text="{Binding PlatformSourceText}" Style="{StaticResource Caption}" Margin="0,8,0,0" />
+                        <TextBlock Style="{StaticResource Caption}" Margin="0,2,0,6">
+                            <Run Text="Backend:  " /><Run Text="{Binding BackendTitle, Mode=OneWay}" FontWeight="SemiBold" />
+                        </TextBlock>
+                        <ItemsControl ItemsSource="{Binding Notes}">
+                            <ItemsControl.ItemTemplate>
+                                <DataTemplate>
+                                    <Grid Margin="0,4,0,0">
+                                        <Grid.ColumnDefinitions>
+                                            <ColumnDefinition Width="86" />
+                                            <ColumnDefinition Width="*" />
+                                        </Grid.ColumnDefinitions>
+                                        <ContentControl Content="{Binding Kind}" ContentTemplate="{StaticResource StateBadge}" VerticalAlignment="Top" Margin="0,1,10,0" />
+                                        <TextBlock Grid.Column="1" Text="{Binding Text}" TextWrapping="Wrap" />
+                                    </Grid>
+                                </DataTemplate>
+                            </ItemsControl.ItemTemplate>
+                        </ItemsControl>
+                        <TextBlock Style="{StaticResource Caption}" Margin="0,10,0,0"
+                                   Text="Open “Console Backends” in the sidebar for the module-by-module status of every backend." />
+                    </StackPanel>
+                </Border>
+
+                <!-- ===== Build ===== -->
+                <Border Style="{StaticResource Card}" Margin="0,0,0,14">
+                    <StackPanel>
+                        <TextBlock Text="Recompile" Style="{StaticResource H3}" />
+                        <TextBlock Text="{Binding SdkText}" Style="{StaticResource Caption}" Margin="0,4,0,10" />
+
+                        <Grid>
+                            <Grid.ColumnDefinitions>
+                                <ColumnDefinition Width="*" />
+                                <ColumnDefinition Width="Auto" />
+                            </Grid.ColumnDefinitions>
+                            <TextBox Text="{Binding OutputDirectory, UpdateSourceTrigger=PropertyChanged}" ToolTip="Folder for the generated project and the built program" />
+                            <Button Grid.Column="1" Content="Choose folder…" Margin="8,0,0,0" Command="{Binding BrowseOutputCommand}" />
+                        </Grid>
+
+                        <CheckBox Style="{StaticResource ToggleSwitch}" Margin="0,14,0,0" IsChecked="{Binding Validate}"
+                                  Content="Check the built program against the reference interpreter (recommended)" />
+                        <CheckBox Style="{StaticResource ToggleSwitch}" Margin="0,10,0,0" IsChecked="{Binding AllowIncomplete}"
+                                  Content="Allow incomplete build: untranslatable parts stop the program when reached"
+                                  Visibility="{Binding CanOfferIncomplete, Converter={StaticResource BoolToVisibility}}" />
+
+                        <StackPanel Orientation="Horizontal" Margin="0,16,0,0">
+                            <Button Style="{StaticResource PrimaryButton}" Command="{Binding RecompileCommand}">
+                                <StackPanel Orientation="Horizontal">
+                                    <Viewbox Width="16" Height="16">
+                                        <Canvas Width="24" Height="24">
+                                            <Path Data="{StaticResource IconBuild}" Stroke="White" StrokeThickness="2" StrokeLineJoin="Round" StrokeStartLineCap="Round" StrokeEndLineCap="Round" />
+                                        </Canvas>
+                                    </Viewbox>
+                                    <TextBlock Text="Recompile" Margin="8,0,0,0" />
+                                </StackPanel>
+                            </Button>
+                            <Button Content="Cancel build" Margin="8,0,0,0" Command="{Binding CancelBuildCommand}" />
+                        </StackPanel>
+                        <TextBlock Text="{Binding RecompileDisabledReason}" Margin="0,10,0,0" Foreground="{StaticResource WarningBrush}" TextWrapping="Wrap"
+                                   Visibility="{Binding RecompileDisabledReason, Converter={StaticResource StringToVisibility}}" />
+
+                        <ItemsControl ItemsSource="{Binding Stages}" Margin="0,14,0,0">
+                            <ItemsControl.ItemTemplate>
+                                <DataTemplate>
+                                    <Grid Margin="0,3,0,0">
+                                        <Grid.ColumnDefinitions>
+                                            <ColumnDefinition Width="160" />
+                                            <ColumnDefinition Width="90" />
+                                            <ColumnDefinition Width="*" />
+                                        </Grid.ColumnDefinitions>
+                                        <TextBlock Text="{Binding Name}" Style="{StaticResource Muted}" VerticalAlignment="Center" />
+                                        <ContentControl Grid.Column="1" Content="{Binding Status}" ContentTemplate="{StaticResource StateBadge}" />
+                                        <TextBlock Grid.Column="2" Text="{Binding Summary}" Style="{StaticResource Caption}" VerticalAlignment="Center" />
+                                    </Grid>
+                                </DataTemplate>
+                            </ItemsControl.ItemTemplate>
+                        </ItemsControl>
+
+                        <Border Margin="0,12,0,0" CornerRadius="10" BorderThickness="1" BorderBrush="{StaticResource BorderBrush}" Background="{StaticResource SurfaceRaisedBrush}" Padding="10,6" MaxHeight="130"
+                                Visibility="{Binding HasBuildLog, Converter={StaticResource BoolToVisibility}}">
+                            <ScrollViewer VerticalScrollBarVisibility="Auto">
+                                <ItemsControl ItemsSource="{Binding BuildLog}">
+                                    <ItemsControl.ItemTemplate>
+                                        <DataTemplate>
+                                            <TextBlock Text="{Binding}" Style="{StaticResource Mono}" FontSize="11.5" Foreground="{StaticResource TextMutedBrush}" TextWrapping="Wrap" />
+                                        </DataTemplate>
+                                    </ItemsControl.ItemTemplate>
+                                </ItemsControl>
+                            </ScrollViewer>
+                        </Border>
+                    </StackPanel>
+                </Border>
+
+                <!-- ===== Result ===== -->
+                <Border Style="{StaticResource Card}" Margin="0,0,0,14" Visibility="{Binding HasResult, Converter={StaticResource BoolToVisibility}}">
+                    <StackPanel>
+                        <TextBlock Text="{Binding ResultTitle}">
+                            <TextBlock.Style>
+                                <Style TargetType="TextBlock" BasedOn="{StaticResource H2}">
+                                    <Setter Property="Foreground" Value="{StaticResource DangerBrush}" />
+                                    <Style.Triggers>
+                                        <DataTrigger Binding="{Binding ResultSucceeded}" Value="True">
+                                            <Setter Property="Foreground" Value="{StaticResource SuccessBrush}" />
+                                        </DataTrigger>
+                                    </Style.Triggers>
+                                </Style>
+                            </TextBlock.Style>
+                        </TextBlock>
+                        <TextBlock Text="{Binding ResultCategory}" FontWeight="SemiBold" Margin="0,8,0,0" />
+                        <TextBlock Text="{Binding ResultExplanation}" Style="{StaticResource Muted}" Margin="0,2,0,0" />
+                        <TextBlock Text="{Binding ValidationText}" Style="{StaticResource Muted}" Foreground="{StaticResource TextBrush}" Margin="0,10,0,6" />
+                        <ItemsControl ItemsSource="{Binding ResultRows}" ItemTemplate="{StaticResource KeyValueRowTemplate}" />
+                        <StackPanel Orientation="Horizontal" Margin="0,12,0,0">
+                            <Button Content="Open build folder" Command="{Binding OpenBuildFolderCommand}" />
+                            <Button Content="Show build report" Margin="8,0,0,0" Command="{Binding OpenReportCommand}" />
+                        </StackPanel>
+                    </StackPanel>
+                </Border>
+
+                <!-- ===== Play ===== -->
+                <Border Style="{StaticResource Card}" Margin="0,0,0,6">
+                    <StackPanel>
+                        <TextBlock Text="Play" Style="{StaticResource H3}" />
+                        <TextBlock Style="{StaticResource Caption}" Margin="0,4,0,10"
+                                   Text="Starts the program that was just built (never the analyzed input file) and shows its output. It runs as a normal Windows process; Stop ends it." />
+                        <StackPanel Orientation="Horizontal">
+                            <Button Style="{StaticResource PrimaryButton}" Command="{Binding PlayCommand}">
+                                <StackPanel Orientation="Horizontal">
+                                    <Viewbox Width="14" Height="14">
+                                        <Canvas Width="24" Height="24">
+                                            <Path Data="{StaticResource IconPlay}" Fill="White" />
+                                        </Canvas>
+                                    </Viewbox>
+                                    <TextBlock Text="Play" Margin="8,0,0,0" />
+                                </StackPanel>
+                            </Button>
+                            <Button Content="Stop" Margin="8,0,0,0" Command="{Binding StopCommand}" />
+                        </StackPanel>
+                        <TextBlock Text="{Binding PlayDisabledReason}" Margin="0,10,0,0" Foreground="{StaticResource WarningBrush}" TextWrapping="Wrap"
+                                   Visibility="{Binding PlayDisabledReason, Converter={StaticResource StringToVisibility}}" />
+                        <TextBlock Text="{Binding RunSummary}" Margin="0,10,0,0" TextWrapping="Wrap"
+                                   Visibility="{Binding RunSummary, Converter={StaticResource StringToVisibility}}" />
+                        <Border Margin="0,10,0,0" CornerRadius="10" BorderThickness="1" BorderBrush="{StaticResource BorderBrush}" Background="{StaticResource SurfaceRaisedBrush}" Padding="12,8" Height="220">
+                            <ScrollViewer VerticalScrollBarVisibility="Auto" HorizontalScrollBarVisibility="Auto">
+                                <ItemsControl ItemsSource="{Binding RunLines}">
+                                    <ItemsControl.ItemTemplate>
+                                        <DataTemplate>
+                                            <TextBlock Text="{Binding}" Style="{StaticResource Mono}" TextWrapping="NoWrap" />
+                                        </DataTemplate>
+                                    </ItemsControl.ItemTemplate>
+                                </ItemsControl>
+                            </ScrollViewer>
+                        </Border>
+                    </StackPanel>
+                </Border>
+            </StackPanel>
+        </ScrollViewer>
+    </Grid>
+</UserControl>

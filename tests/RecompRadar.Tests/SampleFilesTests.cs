@@ -33,7 +33,7 @@ public class SampleFilesTests
             Assert.Equal(first[i].Bytes, second[i].Bytes);
         }
 
-        Assert.All(first, s => Assert.True(s.Bytes.Length < 4096, s.FileName));
+        Assert.All(first, s => Assert.True(s.Bytes.Length < 16 * 1024, s.FileName)); // the PS2-style self-test carries a 4 KiB data segment
         Assert.All(first, s => Assert.False(string.IsNullOrWhiteSpace(s.Description)));
     }
 

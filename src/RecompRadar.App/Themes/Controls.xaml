@@ -604,6 +604,59 @@
         </DataTemplate.Triggers>
     </DataTemplate>
 
+    <!-- Status chip for module states, build stages and note kinds -->
+    <DataTemplate x:Key="StateBadge">
+        <Border x:Name="Badge" CornerRadius="9" Padding="8,1" BorderThickness="1" BorderBrush="{StaticResource BorderBrush}" HorizontalAlignment="Left" VerticalAlignment="Center" MinWidth="70">
+            <TextBlock x:Name="Label" Text="{Binding}" FontSize="11" HorizontalAlignment="Center" Foreground="{StaticResource TextMutedBrush}" />
+        </Border>
+        <DataTemplate.Triggers>
+            <DataTrigger Binding="{Binding}" Value="Implemented">
+                <Setter TargetName="Badge" Property="BorderBrush" Value="{StaticResource SuccessBrush}" />
+                <Setter TargetName="Badge" Property="Background" Value="{StaticResource SuccessSoftBrush}" />
+                <Setter TargetName="Label" Property="Foreground" Value="{StaticResource SuccessBrush}" />
+            </DataTrigger>
+            <DataTrigger Binding="{Binding}" Value="done">
+                <Setter TargetName="Badge" Property="BorderBrush" Value="{StaticResource SuccessBrush}" />
+                <Setter TargetName="Badge" Property="Background" Value="{StaticResource SuccessSoftBrush}" />
+                <Setter TargetName="Label" Property="Foreground" Value="{StaticResource SuccessBrush}" />
+            </DataTrigger>
+            <DataTrigger Binding="{Binding}" Value="Partial">
+                <Setter TargetName="Badge" Property="BorderBrush" Value="{StaticResource WarningBrush}" />
+                <Setter TargetName="Badge" Property="Background" Value="{StaticResource WarningSoftBrush}" />
+                <Setter TargetName="Label" Property="Foreground" Value="{StaticResource WarningBrush}" />
+            </DataTrigger>
+            <DataTrigger Binding="{Binding}" Value="running">
+                <Setter TargetName="Badge" Property="BorderBrush" Value="{StaticResource AccentBrush}" />
+                <Setter TargetName="Badge" Property="Background" Value="{StaticResource AccentSoftBrush}" />
+                <Setter TargetName="Label" Property="Foreground" Value="{StaticResource AccentBrush}" />
+            </DataTrigger>
+            <DataTrigger Binding="{Binding}" Value="Warning">
+                <Setter TargetName="Badge" Property="BorderBrush" Value="{StaticResource WarningBrush}" />
+                <Setter TargetName="Badge" Property="Background" Value="{StaticResource WarningSoftBrush}" />
+                <Setter TargetName="Label" Property="Foreground" Value="{StaticResource WarningBrush}" />
+            </DataTrigger>
+            <DataTrigger Binding="{Binding}" Value="Blocker">
+                <Setter TargetName="Badge" Property="BorderBrush" Value="{StaticResource DangerBrush}" />
+                <Setter TargetName="Badge" Property="Background" Value="{StaticResource DangerSoftBrush}" />
+                <Setter TargetName="Label" Property="Foreground" Value="{StaticResource DangerBrush}" />
+            </DataTrigger>
+            <DataTrigger Binding="{Binding}" Value="failed">
+                <Setter TargetName="Badge" Property="BorderBrush" Value="{StaticResource DangerBrush}" />
+                <Setter TargetName="Badge" Property="Background" Value="{StaticResource DangerSoftBrush}" />
+                <Setter TargetName="Label" Property="Foreground" Value="{StaticResource DangerBrush}" />
+            </DataTrigger>
+            <DataTrigger Binding="{Binding}" Value="Error">
+                <Setter TargetName="Badge" Property="BorderBrush" Value="{StaticResource DangerBrush}" />
+                <Setter TargetName="Badge" Property="Background" Value="{StaticResource DangerSoftBrush}" />
+                <Setter TargetName="Label" Property="Foreground" Value="{StaticResource DangerBrush}" />
+            </DataTrigger>
+            <DataTrigger Binding="{Binding}" Value="NotProvided">
+                <Setter TargetName="Badge" Property="BorderBrush" Value="{StaticResource DangerBrush}" />
+                <Setter TargetName="Label" Property="Foreground" Value="{StaticResource DangerBrush}" />
+            </DataTrigger>
+        </DataTemplate.Triggers>
+    </DataTemplate>
+
     <!-- Key / value row used on several pages -->
     <DataTemplate x:Key="KeyValueRowTemplate">
         <Grid Margin="0,0,0,0">

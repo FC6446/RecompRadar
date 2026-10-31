@@ -72,6 +72,10 @@ public static class SampleFiles
             "MIPS32 little-endian program (own code): function call with delay slots, prints 42, exits with code 7.",
             Mips32Elf(CallProgram(), bigEndian: false)));
 
+        list.Add(new SampleFile("ps2_style_selftest.elf",
+            "PS2-style MIPS32 self-test (own code): recursion, sorting, strings, HI/LO and single-precision floats. RecompRadar can turn it into a Windows program.",
+            Ps2StyleSelfTest.BuildElf()));
+
         var x64 = ElfBuilder.X64Linux();
         x64.OsAbi = 0;
         x64.Interpreter = "/lib64/ld-linux-x86-64.so.2";

@@ -1,0 +1,194 @@
+<UserControl x:Class="RecompRadar.App.Views.DisassemblerView"
+             xmlns="http://schemas.microsoft.com/winfx/2006/xaml/presentation"
+             xmlns:x="http://schemas.microsoft.com/winfx/2006/xaml">
+    <Grid>
+        <!-- Nothing to show -->
+        <Border Style="{StaticResource Card}" VerticalAlignment="Top" Visibility="{Binding HasResult, Converter={StaticResource InvertedBoolToVisibility}}">
+            <StackPanel>
+                <TextBlock Text="No code to show" Style="{StaticResource H3}" />
+                <TextBlock Text="{Binding Code.Status}" Style="{StaticResource Muted}" Margin="0,6,0,0" />
+                <TextBlock Style="{StaticResource Caption}" Margin="0,8,0,0"
+                           Text="The control-flow analysis needs an ELF file whose architecture has a decoder (currently 32-bit MIPS). The file is only read; it is never started." />
+            </StackPanel>
+        </Border>
+
+        <Grid Visibility="{Binding HasResult, Converter={StaticResource BoolToVisibility}}">
+            <Grid.RowDefinitions>
+                <RowDefinition Height="Auto" />
+                <RowDefinition Height="*" />
+            </Grid.RowDefinitions>
+
+            <!-- Uncertainty is always visible -->
+            <Border CornerRadius="12" Padding="16,10" Margin="0,0,0,12" BorderThickness="1" Background="{StaticResource WarningSoftBrush}" BorderBrush="{StaticResource WarningBrush}">
+                <StackPanel>
+                    <TextBlock Text="What is certain and what is not" FontWeight="SemiBold" />
+                    <ItemsControl ItemsSource="{Binding Uncertainties}" Margin="0,4,0,0">
+                        <ItemsControl.ItemTemplate>
+                            <DataTemplate>
+                                <TextBlock Style="{StaticResource Caption}" Foreground="{StaticResource TextBrush}" Margin="0,2,0,0"><Run Text="•  " /><Run Text="{Binding Mode=OneWay}" /></TextBlock>
+                            </DataTemplate>
+                        </ItemsControl.ItemTemplate>
+                    </ItemsControl>
+                </StackPanel>
+            </Border>
+
+            <TabControl Grid.Row="1">
+                <TabItem Header="Functions and code">
+                    <Grid Margin="0,12,0,0">
+                        <Grid.ColumnDefinitions>
+                            <ColumnDefinition Width="400" />
+                            <ColumnDefinition Width="14" />
+                            <ColumnDefinition Width="*" />
+                        </Grid.ColumnDefinitions>
+
+                        <Grid>
+                            <Grid.RowDefinitions>
+                                <RowDefinition Height="Auto" />
+                                <RowDefinition Height="3*" />
+                                <RowDefinition Height="10" />
+                                <RowDefinition Height="2*" />
+                            </Grid.RowDefinitions>
+                            <Grid Margin="0,0,0,8">
+                                <TextBox Text="{Binding FunctionFilter, UpdateSourceTrigger=PropertyChanged}" ToolTip="Filter functions by name or address" />
+                                <TextBlock Text="Filter functions by name or address" IsHitTestVisible="False" VerticalAlignment="Center" Margin="12,0,0,0">
+                                    <TextBlock.Style>
+                                        <Style TargetType="TextBlock" BasedOn="{StaticResource Caption}">
+                                            <Setter Property="Visibility" Value="Collapsed" />
+                                            <Style.Triggers>
+                                                <DataTrigger Binding="{Binding FunctionFilter}" Value="">
+                                                    <Setter Property="Visibility" Value="Visible" />
+                                                </DataTrigger>
+                                            </Style.Triggers>
+                                        </Style>
+                                    </TextBlock.Style>
+                                </TextBlock>
+                            </Grid>
+                            <Border Grid.Row="1" Style="{StaticResource Card}" Padding="0" ClipToBounds="True">
+                                <DataGrid ItemsSource="{Binding FunctionsView}" SelectedItem="{Binding SelectedFunction, Mode=TwoWay}" SelectionMode="Single">
+                                    <DataGrid.Columns>
+                                        <DataGridTextColumn Header="Function" Binding="{Binding Name}" Width="*" ElementStyle="{StaticResource MonoCell}" />
+                                        <DataGridTextColumn Header="Address" Binding="{Binding Address}" Width="100" ElementStyle="{StaticResource MonoCell}" />
+                                        <DataGridTextColumn Header="Blocks" Binding="{Binding Blocks}" Width="60" />
+                                        <DataGridTextColumn Header="Instr." Binding="{Binding Instructions}" Width="60" />
+                                    </DataGrid.Columns>
+                                </DataGrid>
+                            </Border>
+                            <Border Grid.Row="3" Style="{StaticResource Card}" Padding="0" ClipToBounds="True">
+                                <DataGrid ItemsSource="{Binding Blocks}" SelectedItem="{Binding SelectedBlock, Mode=TwoWay}" SelectionMode="Single">
+                                    <DataGrid.Columns>
+                                        <DataGridTextColumn Header="Block" Binding="{Binding Range}" Width="*" ElementStyle="{StaticResource MonoCell}" />
+                                        <DataGridTextColumn Header="Ends with" Binding="{Binding Exit}" Width="140" ElementStyle="{StaticResource WrapCell}" />
+                                    </DataGrid.Columns>
+                                </DataGrid>
+                            </Border>
+                        </Grid>
+
+                        <Grid Grid.Column="2">
+                            <Grid.RowDefinitions>
+                                <RowDefinition Height="Auto" />
+                                <RowDefinition Height="*" />
+                            </Grid.RowDefinitions>
+                            <TextBlock Text="{Binding BlockTitle}" Style="{StaticResource Muted}" Margin="0,4,0,8" />
+                            <TabControl Grid.Row="1">
+                                <TabItem Header="Disassembly">
+                                    <Border Style="{StaticResource Card}" Padding="0" ClipToBounds="True" Margin="0,8,0,0">
+                                        <DataGrid ItemsSource="{Binding Listing}">
+                                            <DataGrid.Columns>
+                                                <DataGridTextColumn Header="Address" Binding="{Binding Address}" Width="110" ElementStyle="{StaticResource MonoCell}" />
+                                                <DataGridTextColumn Header="Word" Binding="{Binding Raw}" Width="100" ElementStyle="{StaticResource MonoCell}" />
+                                                <DataGridTextColumn Header="Instruction" Binding="{Binding Text}" Width="2*" ElementStyle="{StaticResource MonoCell}" />
+                                                <DataGridTextColumn Header="Note" Binding="{Binding Note}" Width="*" ElementStyle="{StaticResource WrapCell}" />
+                                            </DataGrid.Columns>
+                                        </DataGrid>
+                                    </Border>
+                                </TabItem>
+                                <TabItem Header="Intermediate representation">
+                                    <Border Style="{StaticResource Card}" Margin="0,8,0,0">
+                                        <ScrollViewer VerticalScrollBarVisibility="Auto" HorizontalScrollBarVisibility="Auto">
+                                            <TextBlock Text="{Binding IrText}" Style="{StaticResource Mono}" />
+                                        </ScrollViewer>
+                                    </Border>
+                                </TabItem>
+                            </TabControl>
+                        </Grid>
+                    </Grid>
+                </TabItem>
+
+                <TabItem Header="Call graph">
+                    <Border Style="{StaticResource Card}" Padding="0" ClipToBounds="True" Margin="0,12,0,0">
+                        <DataGrid ItemsSource="{Binding Calls}">
+                            <DataGrid.Columns>
+                                <DataGridTextColumn Header="Caller" Binding="{Binding Caller}" Width="*" ElementStyle="{StaticResource MonoCell}" />
+                                <DataGridTextColumn Header="Calls" Binding="{Binding Callee}" Width="*" ElementStyle="{StaticResource MonoCell}" />
+                                <DataGridTextColumn Header="At" Binding="{Binding CallSite}" Width="130" ElementStyle="{StaticResource MonoCell}" />
+                            </DataGrid.Columns>
+                        </DataGrid>
+                    </Border>
+                </TabItem>
+
+                <TabItem Header="Cross references">
+                    <Border Style="{StaticResource Card}" Padding="0" ClipToBounds="True" Margin="0,12,0,0">
+                        <DataGrid ItemsSource="{Binding CrossReferences}">
+                            <DataGrid.Columns>
+                                <DataGridTextColumn Header="From" Binding="{Binding From}" Width="110" ElementStyle="{StaticResource MonoCell}" />
+                                <DataGridTextColumn Header="In function" Binding="{Binding FromFunction}" Width="*" ElementStyle="{StaticResource MonoCell}" />
+                                <DataGridTextColumn Header="To" Binding="{Binding To}" Width="110" ElementStyle="{StaticResource MonoCell}" />
+                                <DataGridTextColumn Header="Target function" Binding="{Binding ToFunction}" Width="*" ElementStyle="{StaticResource MonoCell}" />
+                                <DataGridTextColumn Header="Kind" Binding="{Binding Kind}" Width="80" />
+                            </DataGrid.Columns>
+                        </DataGrid>
+                    </Border>
+                </TabItem>
+
+                <TabItem Header="System calls">
+                    <Grid Margin="0,12,0,0">
+                        <Grid.RowDefinitions>
+                            <RowDefinition Height="2*" />
+                            <RowDefinition Height="10" />
+                            <RowDefinition Height="*" />
+                        </Grid.RowDefinitions>
+                        <Border Style="{StaticResource Card}" Padding="0" ClipToBounds="True">
+                            <DataGrid ItemsSource="{Binding Syscalls}">
+                                <DataGrid.Columns>
+                                    <DataGridTextColumn Header="At" Binding="{Binding Address}" Width="120" ElementStyle="{StaticResource MonoCell}" />
+                                    <DataGridTextColumn Header="Call number" Binding="{Binding Number}" Width="110" ElementStyle="{StaticResource MonoCell}" />
+                                    <DataGridTextColumn Header="Meaning in RecompRadar" Binding="{Binding Meaning}" Width="*" ElementStyle="{StaticResource WrapCell}" />
+                                </DataGrid.Columns>
+                            </DataGrid>
+                        </Border>
+                        <Border Grid.Row="2" Style="{StaticResource Card}" Padding="0" ClipToBounds="True">
+                            <DataGrid ItemsSource="{Binding ResolvedJumps}">
+                                <DataGrid.Columns>
+                                    <DataGridTextColumn Header="Resolved register jump at" Binding="{Binding Address}" Width="*" ElementStyle="{StaticResource MonoCell}" />
+                                    <DataGridTextColumn Header="Target" Binding="{Binding Target}" Width="*" ElementStyle="{StaticResource MonoCell}" />
+                                    <DataGridTextColumn Header="Kind" Binding="{Binding Kind}" Width="100" />
+                                </DataGrid.Columns>
+                            </DataGrid>
+                        </Border>
+                    </Grid>
+                </TabItem>
+
+                <TabItem Header="Findings">
+                    <Border Style="{StaticResource Card}" Padding="0" ClipToBounds="True" Margin="0,12,0,0">
+                        <DataGrid ItemsSource="{Binding Findings}">
+                            <DataGrid.Columns>
+                                <DataGridTextColumn Header="Severity" Binding="{Binding Severity}" Width="90" />
+                                <DataGridTextColumn Header="Address" Binding="{Binding Address}" Width="110" ElementStyle="{StaticResource MonoCell}" />
+                                <DataGridTextColumn Header="Code" Binding="{Binding Code}" Width="200" ElementStyle="{StaticResource MonoCell}" />
+                                <DataGridTextColumn Header="Message" Binding="{Binding Message}" Width="*" ElementStyle="{StaticResource WrapCell}" />
+                            </DataGrid.Columns>
+                        </DataGrid>
+                    </Border>
+                </TabItem>
+
+                <TabItem Header="Overview">
+                    <ScrollViewer VerticalScrollBarVisibility="Auto" Margin="0,12,0,0">
+                        <Border Style="{StaticResource Card}" Padding="20,10">
+                            <ItemsControl ItemsSource="{Binding Summary}" ItemTemplate="{StaticResource KeyValueRowTemplate}" />
+                        </Border>
+                    </ScrollViewer>
+                </TabItem>
+            </TabControl>
+        </Grid>
+    </Grid>
+</UserControl>

@@ -10,7 +10,8 @@ public sealed record RunReport(
     long InstructionsExecuted,
     string? Message,
     string Output,
-    IReadOnlyList<uint> Registers);
+    IReadOnlyList<uint> Registers,
+    double ElapsedMilliseconds = 0);
 
 public sealed record LaunchResult(
     int ExitCode,
@@ -107,7 +108,8 @@ public static class ProgramLauncher
                 root.GetProperty("instructionsExecuted").GetInt64(),
                 root.TryGetProperty("message", out var message) && message.ValueKind == JsonValueKind.String ? message.GetString() : null,
                 root.GetProperty("output").GetString() ?? string.Empty,
-                root.GetProperty("registers").EnumerateArray().Select(e => e.GetUInt32()).ToList());
+                root.GetProperty("registers").EnumerateArray().Select(e => e.GetUInt32()).ToList(),
+                root.TryGetProperty("elapsedMilliseconds", out var elapsed) ? elapsed.GetDouble() : 0);
         }
         catch (Exception ex) when (ex is JsonException or KeyNotFoundException or InvalidOperationException or FormatException or IOException)
         {
