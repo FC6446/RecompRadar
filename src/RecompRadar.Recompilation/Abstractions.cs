@@ -182,6 +182,14 @@ public interface IRecompilerPlugin
     IRuntimeCompatibilityLayer? CreateRuntime();
 
     ICodeBackend? CreateBackend();
+
+    /// <summary>System call numbers that end the program, so code behind them is not treated as their continuation.</summary>
+    IReadOnlySet<uint> NoReturnSystemCalls => EmptyNumbers.Instance;
+}
+
+internal static class EmptyNumbers
+{
+    public static readonly IReadOnlySet<uint> Instance = new HashSet<uint>();
 }
 
 public sealed class RecompilerPluginRegistry

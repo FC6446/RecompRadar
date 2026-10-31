@@ -10,4 +10,12 @@
     <Nullable>enable</Nullable>
   </PropertyGroup>
 
+  <!-- The runtime templates are source text for generated programs, not part of this library. -->
+  <ItemGroup>
+    <Compile Remove="Generation\Templates\**\*.cs" />
+    <EmbeddedResource Include="Generation\Templates\*.cs" LogicalName="Templates/%(Filename)%(Extension)" />
+    <!-- The shared semantics are compiled here and also copied verbatim into generated programs. -->
+    <EmbeddedResource Include="Shared\IrSemantics.cs" LogicalName="Templates/IrSemantics.cs" />
+  </ItemGroup>
+
 </Project>

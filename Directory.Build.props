@@ -10,7 +10,7 @@
     <Product>RecompRadar</Product>
     <Authors>RecompRadar contributors</Authors>
     <Description>RecompRadar - Console Binary Analysis and Native Portability Research Tool</Description>
-    <Version>0.1.0</Version>
+    <Version>3.0.0-alpha.1</Version>
     <RepositoryType>git</RepositoryType>
     <PackageLicenseExpression>MIT</PackageLicenseExpression>
     <GenerateDocumentationFile>false</GenerateDocumentationFile>

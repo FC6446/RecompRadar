@@ -2,6 +2,7 @@ using RecompRadar.Core;
 using RecompRadar.Core.Model;
 using RecompRadar.Recompilation.Execution;
 using RecompRadar.Recompilation.Loading;
+using RecompRadar.Semantics;
 
 namespace RecompRadar.Recompilation.Mips;
 
@@ -12,6 +13,9 @@ namespace RecompRadar.Recompilation.Mips;
 /// </summary>
 public sealed class MipsPocPlugin : IRecompilerPlugin
 {
+    /// <summary>The PoC system calls that end the program (used by the code analysis).</summary>
+    public IReadOnlySet<uint> NoReturnSystemCalls { get; } = new HashSet<uint> { PocSystemCalls.Exit };
+
     public string Id => "recompradar.mips32-poc";
 
     public string DisplayName => "MIPS32 proof of concept (integer subset)";

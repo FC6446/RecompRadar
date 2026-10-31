@@ -36,6 +36,7 @@ public sealed class MipsTranslator : ICodeTranslator
             if (i > 0 && leaders.Contains(pc))
             {
                 block.Terminator = new IrJump(pc, IsCall: false);
+                block.IsFallthrough = true;
                 return block;
             }
 
@@ -50,6 +51,12 @@ public sealed class MipsTranslator : ICodeTranslator
             if (terminator is not null)
             {
                 block.Terminator = terminator;
+                block.TerminatorAddress = pc;
+                if (terminator is IrSyscall)
+                {
+                    block.EndAddress = pc + 4;
+                }
+
                 return block;
             }
 
@@ -58,6 +65,7 @@ public sealed class MipsTranslator : ICodeTranslator
         }
 
         block.Terminator = new IrJump(pc, IsCall: false);
+        block.IsFallthrough = true;
         return block;
     }
 

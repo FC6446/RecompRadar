@@ -151,7 +151,14 @@ public sealed class IrBlock
 {
     public ulong StartAddress { get; init; }
 
+    /// <summary>First guest address after the translated bytes, including a delay slot and the syscall instruction.</summary>
     public ulong EndAddress { get; set; }
+
+    /// <summary>Address of the branch, jump or syscall that ends the block. Only meaningful when <see cref="IsFallthrough"/> is false.</summary>
+    public ulong TerminatorAddress { get; set; }
+
+    /// <summary>True when the block ends only because the next address is a branch target (or the block got too long); no guest instruction jumps.</summary>
+    public bool IsFallthrough { get; set; }
 
     public int GuestInstructionCount { get; set; }
 
