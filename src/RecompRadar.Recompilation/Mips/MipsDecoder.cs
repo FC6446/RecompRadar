@@ -22,6 +22,12 @@ internal readonly struct MipsWord
     public int SImm => (short)(Raw & 0xFFFF);
     public uint JumpIndex => Raw & 0x03FFFFFF;
 
+    // COP1 field names: fmt = rs, ft = rt, fs = rd, fd = sa.
+    public int Fmt => Rs;
+    public int Ft => Rt;
+    public int Fs => Rd;
+    public int Fd => Sa;
+
     public ulong BranchTarget(ulong pc) => unchecked((ulong)((long)pc + 4 + (SImm * 4L))) & 0xFFFFFFFF;
 
     public ulong JumpTarget(ulong pc) => ((pc + 4) & 0xF0000000) | ((ulong)JumpIndex << 2);
@@ -38,15 +44,18 @@ public static class MipsRegisters
     ];
 
     public static string Name(int index) => Names[index & 31];
+
+    public static string Fpr(int index) => $"$f{index & 31}";
 }
 
 /// <summary>
-/// Decoder for a deliberately small integer subset of MIPS32 (no FPU, no HI/LO, no coprocessors, no branch-likely).
-/// Anything outside that subset is reported as an unknown word instead of being guessed.
+/// Decoder for the integer, HI/LO and single-precision FPU subset of MIPS32 that RecompRadar can translate.
+/// Instructions that are valid MIPS but not translated (for example branch-likely) are still named, so reports can say
+/// exactly what is missing; everything else is shown as an unknown word instead of being guessed.
 /// </summary>
 public sealed class MipsDecoder : IArchitectureDecoder
 {
-    public string Name => "MIPS32 integer subset decoder (proof of concept)";
+    public string Name => "MIPS32 integer/FPU subset decoder";
 
     public DecodedInstruction? Decode(IMemoryReader memory, Endianness endianness, ulong address)
     {
@@ -60,16 +69,28 @@ public sealed class MipsDecoder : IArchitectureDecoder
         return DecodeWord(word, address);
     }
 
+    /// <summary>Mnemonics that are decoded but have no translation yet; the translator reports them as unsupported.</summary>
+    internal static bool IsDecodedButUntranslated(uint raw)
+    {
+        var w = new MipsWord(raw);
+        return w.Op is 0x14 or 0x15 or 0x16 or 0x17
+            || (w.Op == 0x01 && w.Rt is 0x02 or 0x03 or 0x12 or 0x13)
+            || (w.Op == 0x11 && w.Fmt == 8 && w.Rt is 2 or 3);
+    }
+
     internal static DecodedInstruction DecodeWord(uint raw, ulong pc)
     {
         var w = new MipsWord(raw);
+
         DecodedInstruction Make(string mnemonic, string operands, InstructionKind kind = InstructionKind.Other, bool delay = false, ulong? target = null) =>
             new(pc, raw, mnemonic, operands, kind, delay, target);
 
         static string R(int i) => MipsRegisters.Name(i);
+        static string Fp(int i) => MipsRegisters.Fpr(i);
         DecodedInstruction Unknown() => Make(".word", $"0x{raw:X8}", InstructionKind.Unknown);
-
-        string Mem(string m) => $"{R(w.Rt)}, {w.SImm}({R(w.Rs)})";
+        string Mem() => $"{R(w.Rt)}, {w.SImm}({R(w.Rs)})";
+        string R3() => $"{R(w.Rd)}, {R(w.Rs)}, {R(w.Rt)}";
+        string Branch2(string mnemonic, ulong target) => $"{R(w.Rs)}, {R(w.Rt)}, 0x{target:X8}";
 
         switch (w.Op)
         {
@@ -89,27 +110,48 @@ public sealed class MipsDecoder : IArchitectureDecoder
                     case 0x07: return Make("srav", $"{R(w.Rd)}, {R(w.Rt)}, {R(w.Rs)}");
                     case 0x08: return Make("jr", R(w.Rs), InstructionKind.JumpRegister, true);
                     case 0x09: return Make("jalr", w.Rd == 31 ? R(w.Rs) : $"{R(w.Rd)}, {R(w.Rs)}", InstructionKind.JumpRegister, true);
+                    case 0x0A: return Make("movz", R3());
+                    case 0x0B: return Make("movn", R3());
                     case 0x0C: return Make("syscall", "", InstructionKind.Syscall);
-                    case 0x21: return Make("addu", $"{R(w.Rd)}, {R(w.Rs)}, {R(w.Rt)}");
-                    case 0x23: return Make("subu", $"{R(w.Rd)}, {R(w.Rs)}, {R(w.Rt)}");
-                    case 0x24: return Make("and", $"{R(w.Rd)}, {R(w.Rs)}, {R(w.Rt)}");
-                    case 0x25: return Make("or", $"{R(w.Rd)}, {R(w.Rs)}, {R(w.Rt)}");
-                    case 0x26: return Make("xor", $"{R(w.Rd)}, {R(w.Rs)}, {R(w.Rt)}");
-                    case 0x27: return Make("nor", $"{R(w.Rd)}, {R(w.Rs)}, {R(w.Rt)}");
-                    case 0x2A: return Make("slt", $"{R(w.Rd)}, {R(w.Rs)}, {R(w.Rt)}");
-                    case 0x2B: return Make("sltu", $"{R(w.Rd)}, {R(w.Rs)}, {R(w.Rt)}");
+                    case 0x0D: return Make("break", "");
+                    case 0x0F: return Make("sync", "");
+                    case 0x10: return Make("mfhi", R(w.Rd));
+                    case 0x11: return Make("mthi", R(w.Rs));
+                    case 0x12: return Make("mflo", R(w.Rd));
+                    case 0x13: return Make("mtlo", R(w.Rs));
+                    case 0x18: return Make("mult", w.Rd == 0 ? $"{R(w.Rs)}, {R(w.Rt)}" : R3());
+                    case 0x19: return Make("multu", w.Rd == 0 ? $"{R(w.Rs)}, {R(w.Rt)}" : R3());
+                    case 0x1A: return Make("div", $"{R(w.Rs)}, {R(w.Rt)}");
+                    case 0x1B: return Make("divu", $"{R(w.Rs)}, {R(w.Rt)}");
+                    case 0x20: return Make("add", R3());
+                    case 0x21: return Make("addu", R3());
+                    case 0x22: return Make("sub", R3());
+                    case 0x23: return Make("subu", R3());
+                    case 0x24: return Make("and", R3());
+                    case 0x25: return Make("or", R3());
+                    case 0x26: return Make("xor", R3());
+                    case 0x27: return Make("nor", R3());
+                    case 0x2A: return Make("slt", R3());
+                    case 0x2B: return Make("sltu", R3());
                     default: return Unknown();
                 }
 
             case 0x1C:
-                return w.Funct == 0x02 ? Make("mul", $"{R(w.Rd)}, {R(w.Rs)}, {R(w.Rt)}") : Unknown();
+                return w.Funct == 0x02 ? Make("mul", R3()) : Unknown();
             case 0x01:
             {
                 var target = w.BranchTarget(pc);
+                var ops = $"{R(w.Rs)}, 0x{target:X8}";
                 return w.Rt switch
                 {
-                    0 => Make("bltz", $"{R(w.Rs)}, 0x{target:X8}", InstructionKind.Branch, true, target),
-                    1 => Make("bgez", $"{R(w.Rs)}, 0x{target:X8}", InstructionKind.Branch, true, target),
+                    0x00 => Make("bltz", ops, InstructionKind.Branch, true, target),
+                    0x01 => Make("bgez", ops, InstructionKind.Branch, true, target),
+                    0x02 => Make("bltzl", ops, InstructionKind.Branch, true, target),
+                    0x03 => Make("bgezl", ops, InstructionKind.Branch, true, target),
+                    0x10 => Make("bltzal", ops, InstructionKind.Call, true, target),
+                    0x11 => Make("bgezal", ops, InstructionKind.Call, true, target),
+                    0x12 => Make("bltzall", ops, InstructionKind.Call, true, target),
+                    0x13 => Make("bgezall", ops, InstructionKind.Call, true, target),
                     _ => Unknown(),
                 };
             }
@@ -127,29 +169,23 @@ public sealed class MipsDecoder : IArchitectureDecoder
             }
 
             case 0x04:
-            {
-                var target = w.BranchTarget(pc);
-                return Make("beq", $"{R(w.Rs)}, {R(w.Rt)}, 0x{target:X8}", InstructionKind.Branch, true, target);
-            }
-
             case 0x05:
+            case 0x14:
+            case 0x15:
             {
                 var target = w.BranchTarget(pc);
-                return Make("bne", $"{R(w.Rs)}, {R(w.Rt)}, 0x{target:X8}", InstructionKind.Branch, true, target);
+                var name = w.Op switch { 0x04 => "beq", 0x05 => "bne", 0x14 => "beql", _ => "bnel" };
+                return Make(name, Branch2(name, target), InstructionKind.Branch, true, target);
             }
 
-            case 0x06 when w.Rt == 0:
+            case 0x06 or 0x07 or 0x16 or 0x17 when w.Rt == 0:
             {
                 var target = w.BranchTarget(pc);
-                return Make("blez", $"{R(w.Rs)}, 0x{target:X8}", InstructionKind.Branch, true, target);
+                var name = w.Op switch { 0x06 => "blez", 0x07 => "bgtz", 0x16 => "blezl", _ => "bgtzl" };
+                return Make(name, $"{R(w.Rs)}, 0x{target:X8}", InstructionKind.Branch, true, target);
             }
 
-            case 0x07 when w.Rt == 0:
-            {
-                var target = w.BranchTarget(pc);
-                return Make("bgtz", $"{R(w.Rs)}, 0x{target:X8}", InstructionKind.Branch, true, target);
-            }
-
+            case 0x08: return Make("addi", $"{R(w.Rt)}, {R(w.Rs)}, {w.SImm}");
             case 0x09: return Make("addiu", $"{R(w.Rt)}, {R(w.Rs)}, {w.SImm}");
             case 0x0A: return Make("slti", $"{R(w.Rt)}, {R(w.Rs)}, {w.SImm}");
             case 0x0B: return Make("sltiu", $"{R(w.Rt)}, {R(w.Rs)}, {w.SImm}");
@@ -157,15 +193,68 @@ public sealed class MipsDecoder : IArchitectureDecoder
             case 0x0D: return Make("ori", $"{R(w.Rt)}, {R(w.Rs)}, 0x{w.Imm:X}");
             case 0x0E: return Make("xori", $"{R(w.Rt)}, {R(w.Rs)}, 0x{w.Imm:X}");
             case 0x0F: return Make("lui", $"{R(w.Rt)}, 0x{w.Imm:X}");
-            case 0x20: return Make("lb", Mem("lb"));
-            case 0x21: return Make("lh", Mem("lh"));
-            case 0x23: return Make("lw", Mem("lw"));
-            case 0x24: return Make("lbu", Mem("lbu"));
-            case 0x25: return Make("lhu", Mem("lhu"));
-            case 0x28: return Make("sb", Mem("sb"));
-            case 0x29: return Make("sh", Mem("sh"));
-            case 0x2B: return Make("sw", Mem("sw"));
+            case 0x11: return DecodeCop1(w, raw, pc);
+            case 0x20: return Make("lb", Mem());
+            case 0x21: return Make("lh", Mem());
+            case 0x23: return Make("lw", Mem());
+            case 0x24: return Make("lbu", Mem());
+            case 0x25: return Make("lhu", Mem());
+            case 0x28: return Make("sb", Mem());
+            case 0x29: return Make("sh", Mem());
+            case 0x2B: return Make("sw", Mem());
+            case 0x2F: return Make("cache", "");
+            case 0x31: return Make("lwc1", $"{Fp(w.Ft)}, {w.SImm}({R(w.Rs)})");
+            case 0x33: return Make("pref", "");
+            case 0x39: return Make("swc1", $"{Fp(w.Ft)}, {w.SImm}({R(w.Rs)})");
             default: return Unknown();
+        }
+    }
+
+    private static DecodedInstruction DecodeCop1(MipsWord w, uint raw, ulong pc)
+    {
+        DecodedInstruction Make(string mnemonic, string operands, InstructionKind kind = InstructionKind.Other, bool delay = false, ulong? target = null) =>
+            new(pc, raw, mnemonic, operands, kind, delay, target);
+
+        static string Fp(int i) => MipsRegisters.Fpr(i);
+        DecodedInstruction Unknown() => Make(".word", $"0x{raw:X8}", InstructionKind.Unknown);
+        var three = $"{Fp(w.Fd)}, {Fp(w.Fs)}, {Fp(w.Ft)}";
+        var two = $"{Fp(w.Fd)}, {Fp(w.Fs)}";
+        var compare = $"{Fp(w.Fs)}, {Fp(w.Ft)}";
+
+        switch (w.Fmt)
+        {
+            case 0: return Make("mfc1", $"{MipsRegisters.Name(w.Rt)}, {Fp(w.Fs)}");
+            case 4: return Make("mtc1", $"{MipsRegisters.Name(w.Rt)}, {Fp(w.Fs)}");
+            case 8:
+            {
+                var target = w.BranchTarget(pc);
+                var name = w.Rt switch { 0 => "bc1f", 1 => "bc1t", 2 => "bc1fl", 3 => "bc1tl", _ => null };
+                return name is null ? Unknown() : Make(name, $"0x{target:X8}", InstructionKind.Branch, true, target);
+            }
+
+            case 16:
+                return w.Funct switch
+                {
+                    0x00 => Make("add.s", three),
+                    0x01 => Make("sub.s", three),
+                    0x02 => Make("mul.s", three),
+                    0x03 => Make("div.s", three),
+                    0x04 => Make("sqrt.s", two),
+                    0x05 => Make("abs.s", two),
+                    0x06 => Make("mov.s", two),
+                    0x07 => Make("neg.s", two),
+                    0x0D => Make("trunc.w.s", two),
+                    0x24 => Make("cvt.w.s", two),
+                    0x30 => Make("c.f.s", compare),
+                    0x32 => Make("c.eq.s", compare),
+                    0x34 or 0x3C => Make("c.lt.s", compare),
+                    0x36 or 0x3E => Make("c.le.s", compare),
+                    _ => Unknown(),
+                };
+            case 20:
+                return w.Funct == 0x20 ? Make("cvt.s.w", two) : Unknown();
+            default:
+                return Unknown();
         }
     }
 }

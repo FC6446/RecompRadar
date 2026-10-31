@@ -183,10 +183,11 @@ public class XamlSmokeTests
                 root.UpdateLayout();
             }
 
-            var pageKeys = new[] { "dashboard", "analyzer", "architecture", "dependencies", "report", "projects", "settings" };
+            var pageKeys = new[] { "dashboard", "analyzer", "architecture", "disassembler", "consoles", "recompiler", "dependencies", "report", "projects", "settings" };
             foreach (var sample in SampleFiles.All())
             {
                 await h.Session.AnalyzeAsync(h.Sample(sample.FileName));
+                await Harness.WaitUntilAsync(() => !h.CodeService.IsRunning);
                 foreach (var key in pageKeys)
                 {
                     h.Main.Navigate(key);

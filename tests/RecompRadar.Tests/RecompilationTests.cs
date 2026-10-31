@@ -204,12 +204,12 @@ public class MipsExecutionTests
     [Fact]
     public void Unsupported_instructions_stop_execution_with_a_clear_message_instead_of_guessing()
     {
-        var p = new MipsProgram().Addiu(Reg.T0, Reg.Zero, 1).Word(0x46000000); // COP1 (floating point) is outside the supported subset
+        var p = new MipsProgram().Addiu(Reg.T0, Reg.Zero, 1).Word(0x70000000); // MADD (multiply-accumulate) is outside the supported subset
 
         var result = Run(p, bigEndian: true);
 
         Assert.Equal(ExecutionStatus.Stopped, result.Status);
-        Assert.Contains("unsupported instruction 0x46000000", result.Message);
+        Assert.Contains("unsupported instruction 0x70000000", result.Message);
         Assert.Contains($"0x{Base + 4:X8}", result.Message);
     }
 
@@ -324,7 +324,7 @@ public class MipsTranslatorAndDecoderTests
             .Jal("l")
             .Jr(Reg.Ra)
             .Syscall()
-            .Word(0x46000000);
+            .Word(0x70000000);
         var image = Image(p, bigEndian: true);
         var decoder = new MipsDecoder();
         var text = Enumerable.Range(0, 11).Select(i => decoder.Decode(image, Endianness.Big, SampleFiles.CodeBase + (ulong)(i * 4))!).ToList();
@@ -451,7 +451,7 @@ public class LoaderAndPluginTests
         var plugin = registry.FindSupporting(mips)[0];
         Assert.Equal(PluginCapabilities.Loader | PluginCapabilities.Decoder | PluginCapabilities.Translator | PluginCapabilities.Runtime | PluginCapabilities.Backend, plugin.Capabilities);
         Assert.False(plugin.CreateBackend()!.IsNative);
-        Assert.Contains("No FPU", plugin.Description);
+        Assert.Contains("single-precision FPU", plugin.Description);
     }
 
     private sealed class DummyPlugin(string id, bool throwOnSupports = false) : IRecompilerPlugin
@@ -509,7 +509,7 @@ public class LoaderAndPluginTests
     [Fact]
     public void Entry_point_preview_flags_words_outside_the_supported_subset()
     {
-        var program = new MipsProgram().Nop().Word(0x46000000).Word(0x70000000);
+        var program = new MipsProgram().Nop().Word(0x70000000).Word(0x7C000000);
         var bytes = SampleFiles.Mips32Elf(program, false);
         var elf = T.ParseOk(bytes);
         using var stream = new MemoryStream(bytes);

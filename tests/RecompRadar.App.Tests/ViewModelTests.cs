@@ -258,14 +258,14 @@ public class AnalysisWorkflowTests
     }
 
     [Fact]
-    public void Navigation_offers_the_seven_pages_in_the_required_order()
+    public void Navigation_offers_the_ten_pages_in_the_required_order()
     {
         Sta.Run(() =>
         {
             using var h = new Harness();
 
             Assert.Equal(
-                ["Dashboard", "Binary Analyzer", "Architecture Inspector", "Dependencies", "Portability Report", "Projects", "Settings"],
+                ["Dashboard", "Binary Analyzer", "Architecture Inspector", "Disassembler", "Console Backends", "Recompiler & Build", "Dependencies", "Portability Report", "Projects", "Settings"],
                 h.Main.NavItems.Select(n => n.Title));
             Assert.IsType<DashboardViewModel>(h.Main.CurrentPage);
 

@@ -85,10 +85,15 @@ public partial class App : Application
         services.AddSingleton<IShellService, ShellService>();
         services.AddSingleton<NotificationService>();
         services.AddSingleton<AnalysisSession>();
+        services.AddSingleton<CodeAnalysisService>();
+        services.AddSingleton<IRecompilerService, RecompilerService>();
 
         services.AddSingleton<DashboardViewModel>();
         services.AddSingleton<BinaryAnalyzerViewModel>();
         services.AddSingleton<ArchitectureViewModel>();
+        services.AddSingleton<DisassemblerViewModel>();
+        services.AddSingleton<ConsolesViewModel>();
+        services.AddSingleton<RecompilerViewModel>();
         services.AddSingleton<DependenciesViewModel>();
         services.AddSingleton<ReportViewModel>();
         services.AddSingleton<ProjectsViewModel>();
@@ -99,7 +104,7 @@ public partial class App : Application
 
     /// <summary>
     /// Optional arguments: a file path to analyze right away, and --page=&lt;key&gt; to start on a page
-    /// (dashboard, analyzer, architecture, dependencies, report, projects, settings).
+    /// (dashboard, analyzer, architecture, disassembler, consoles, recompiler, dependencies, report, projects, settings).
     /// The file is only analyzed statically; it is never started.
     /// </summary>
     private void HandleCommandLine(string[] args, MainViewModel main)

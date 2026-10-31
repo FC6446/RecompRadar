@@ -1,4 +1,5 @@
 using RecompRadar.Recompilation.IR;
+using RecompRadar.Semantics;
 
 namespace RecompRadar.Recompilation.Execution;
 
@@ -172,6 +173,77 @@ public sealed class IrInterpreter : ICodeBackend
                 break;
             case IrOp.Store32:
                 m.Store(unchecked(a + (uint)i.Offset), 4, b);
+                break;
+            case IrOp.MulHiS:
+                regs[i.Dest] = Sem.MulHiS(a, b);
+                break;
+            case IrOp.MulHiU:
+                regs[i.Dest] = Sem.MulHiU(a, b);
+                break;
+            case IrOp.DivS:
+                regs[i.Dest] = Sem.DivS(a, b);
+                break;
+            case IrOp.RemS:
+                regs[i.Dest] = Sem.RemS(a, b);
+                break;
+            case IrOp.DivU:
+                regs[i.Dest] = Sem.DivU(a, b);
+                break;
+            case IrOp.RemU:
+                regs[i.Dest] = Sem.RemU(a, b);
+                break;
+            case IrOp.MoveIfZero:
+                if (b == 0)
+                {
+                    regs[i.Dest] = a;
+                }
+
+                break;
+            case IrOp.MoveIfNonZero:
+                if (b != 0)
+                {
+                    regs[i.Dest] = a;
+                }
+
+                break;
+            case IrOp.FAdd:
+                regs[i.Dest] = Sem.FAdd(a, b);
+                break;
+            case IrOp.FSub:
+                regs[i.Dest] = Sem.FSub(a, b);
+                break;
+            case IrOp.FMul:
+                regs[i.Dest] = Sem.FMul(a, b);
+                break;
+            case IrOp.FDiv:
+                regs[i.Dest] = Sem.FDiv(a, b);
+                break;
+            case IrOp.FSqrt:
+                regs[i.Dest] = Sem.FSqrt(a);
+                break;
+            case IrOp.FAbs:
+                regs[i.Dest] = Sem.FAbs(a);
+                break;
+            case IrOp.FNeg:
+                regs[i.Dest] = Sem.FNeg(a);
+                break;
+            case IrOp.CvtSW:
+                regs[i.Dest] = Sem.CvtSW(a);
+                break;
+            case IrOp.CvtWS:
+                regs[i.Dest] = Sem.CvtWS(a);
+                break;
+            case IrOp.TruncWS:
+                regs[i.Dest] = Sem.TruncWS(a);
+                break;
+            case IrOp.FEq:
+                regs[i.Dest] = Sem.FEq(a, b);
+                break;
+            case IrOp.FLt:
+                regs[i.Dest] = Sem.FLt(a, b);
+                break;
+            case IrOp.FLe:
+                regs[i.Dest] = Sem.FLe(a, b);
                 break;
             default:
                 throw new GuestFaultException($"Unknown IR operation {i.Op}.");

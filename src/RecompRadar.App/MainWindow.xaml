@@ -4,7 +4,7 @@
         xmlns:vm="clr-namespace:RecompRadar.App.ViewModels"
         xmlns:views="clr-namespace:RecompRadar.App.Views"
         xmlns:beh="clr-namespace:RecompRadar.App.Behaviors"
-        Title="RecompRadar – Console Binary Analysis"
+        Title="RecompRadar – Console Recompilation Framework"
         Width="1320" Height="840" MinWidth="1040" MinHeight="680"
         WindowStartupLocation="CenterScreen"
         Background="{StaticResource BgBrush}"
@@ -20,6 +20,9 @@
         <DataTemplate DataType="{x:Type vm:DashboardViewModel}"><views:DashboardView /></DataTemplate>
         <DataTemplate DataType="{x:Type vm:BinaryAnalyzerViewModel}"><views:BinaryAnalyzerView /></DataTemplate>
         <DataTemplate DataType="{x:Type vm:ArchitectureViewModel}"><views:ArchitectureView /></DataTemplate>
+        <DataTemplate DataType="{x:Type vm:DisassemblerViewModel}"><views:DisassemblerView /></DataTemplate>
+        <DataTemplate DataType="{x:Type vm:ConsolesViewModel}"><views:ConsolesView /></DataTemplate>
+        <DataTemplate DataType="{x:Type vm:RecompilerViewModel}"><views:RecompilerView /></DataTemplate>
         <DataTemplate DataType="{x:Type vm:DependenciesViewModel}"><views:DependenciesView /></DataTemplate>
         <DataTemplate DataType="{x:Type vm:ReportViewModel}"><views:ReportView /></DataTemplate>
         <DataTemplate DataType="{x:Type vm:ProjectsViewModel}"><views:ProjectsView /></DataTemplate>
@@ -52,7 +55,7 @@
                     </Border>
                     <StackPanel Margin="12,0,0,0" VerticalAlignment="Center">
                         <TextBlock Text="RecompRadar" FontSize="17" FontWeight="Bold" />
-                        <TextBlock Text="Console binary analysis" Style="{StaticResource Caption}" />
+                        <TextBlock Text="Console recompilation" Style="{StaticResource Caption}" />
                     </StackPanel>
                 </StackPanel>
 
@@ -73,9 +76,9 @@
                                           StrokeLineJoin="Round" StrokeStartLineCap="Round" StrokeEndLineCap="Round" />
                                 </Canvas>
                             </Viewbox>
-                            <TextBlock Text="Static analysis only" FontWeight="SemiBold" Margin="8,0,0,0" />
+                            <TextBlock Text="Input is never executed" FontWeight="SemiBold" Margin="8,0,0,0" />
                         </StackPanel>
-                        <TextBlock Text="Analyzed files are read, never executed. Nothing is decrypted." Style="{StaticResource Caption}" Margin="0,6,0,0" />
+                        <TextBlock Text="Analyzed files are only read. Only programs RecompRadar built itself can be started. Nothing is decrypted." Style="{StaticResource Caption}" Margin="0,6,0,0" />
                         <TextBlock Text="{Binding VersionText}" Style="{StaticResource Caption}" Margin="0,8,0,0" />
                     </StackPanel>
                 </Border>

@@ -102,6 +102,9 @@ public interface ICodeTranslator
 
     /// <summary>Translates one basic block starting at <paramref name="address"/>. Never throws for undecodable code; the block ends with an <see cref="IrStop"/>.</summary>
     IrBlock TranslateBlock(IMemoryReader memory, Endianness endianness, ulong address);
+
+    /// <summary>Like <see cref="TranslateBlock(IMemoryReader, Endianness, ulong)"/>, but ends the block in front of any address in <paramref name="leaders"/> so that blocks never overlap.</summary>
+    IrBlock TranslateBlock(IMemoryReader memory, Endianness endianness, ulong address, IReadOnlySet<ulong> leaders);
 }
 
 public sealed record SyscallOutcome(bool Exit, int ExitCode = 0, string? Fault = null);
@@ -179,6 +182,14 @@ public interface IRecompilerPlugin
     IRuntimeCompatibilityLayer? CreateRuntime();
 
     ICodeBackend? CreateBackend();
+
+    /// <summary>System call numbers that end the program, so code behind them is not treated as their continuation.</summary>
+    IReadOnlySet<uint> NoReturnSystemCalls => EmptyNumbers.Instance;
+}
+
+internal static class EmptyNumbers
+{
+    public static readonly IReadOnlySet<uint> Instance = new HashSet<uint>();
 }
 
 public sealed class RecompilerPluginRegistry

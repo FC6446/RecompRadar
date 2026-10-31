@@ -1,0 +1,110 @@
+<UserControl x:Class="RecompRadar.App.Views.ConsolesView"
+             xmlns="http://schemas.microsoft.com/winfx/2006/xaml/presentation"
+             xmlns:x="http://schemas.microsoft.com/winfx/2006/xaml">
+    <ScrollViewer VerticalScrollBarVisibility="Auto">
+        <StackPanel Margin="0,0,14,0">
+
+            <!-- Detection for the current file -->
+            <Border Style="{StaticResource Card}" Margin="0,0,0,14">
+                <StackPanel>
+                    <TextBlock Text="Console detection for the current file" Style="{StaticResource H3}" />
+                    <TextBlock Text="{Binding DetectionSummary}" FontSize="16" FontWeight="SemiBold" Foreground="{StaticResource WarningBrush}" Margin="0,8,0,0" TextWrapping="Wrap" />
+                    <TextBlock Text="{Binding DetectionDisclaimer}" Style="{StaticResource Caption}" Margin="0,4,0,4" />
+                    <ItemsControl ItemsSource="{Binding Candidates}">
+                        <ItemsControl.ItemTemplate>
+                            <DataTemplate>
+                                <Border Margin="0,6,0,0" Padding="14,10" CornerRadius="11" BorderThickness="1" BorderBrush="{StaticResource BorderBrush}" Background="{StaticResource SurfaceRaisedBrush}">
+                                    <StackPanel>
+                                        <StackPanel Orientation="Horizontal">
+                                            <TextBlock Text="{Binding Name}" FontWeight="SemiBold" FontSize="14" />
+                                            <Border Margin="10,0,0,0" CornerRadius="9" Padding="8,1" BorderThickness="1" BorderBrush="{StaticResource WarningBrush}" Background="{StaticResource WarningSoftBrush}" VerticalAlignment="Center">
+                                                <TextBlock Text="{Binding Strength}" FontSize="11" Foreground="{StaticResource WarningBrush}" />
+                                            </Border>
+                                        </StackPanel>
+                                        <ItemsControl ItemsSource="{Binding Reasons}" Margin="0,6,0,0">
+                                            <ItemsControl.ItemTemplate>
+                                                <DataTemplate>
+                                                    <TextBlock Style="{StaticResource Caption}" Margin="0,2,0,0"><Run Text="{Binding Name, Mode=OneWay}" FontWeight="SemiBold" /><Run Text=":  " /><Run Text="{Binding Value, Mode=OneWay}" /></TextBlock>
+                                                </DataTemplate>
+                                            </ItemsControl.ItemTemplate>
+                                        </ItemsControl>
+                                    </StackPanel>
+                                </Border>
+                            </DataTemplate>
+                        </ItemsControl.ItemTemplate>
+                    </ItemsControl>
+                    <TextBlock Style="{StaticResource Caption}" Margin="0,10,0,0"
+                               Text="A hint never makes a file supported. On the Recompiler page you can choose a system manually; that only selects which backend is checked and cannot raise the compatibility level." />
+                </StackPanel>
+            </Border>
+
+            <!-- Backends -->
+            <ItemsControl ItemsSource="{Binding Backends}">
+                <ItemsControl.ItemTemplate>
+                    <DataTemplate>
+                        <Border Style="{StaticResource Card}" Margin="0,0,0,14">
+                            <StackPanel>
+                                <Grid>
+                                    <Grid.ColumnDefinitions>
+                                        <ColumnDefinition Width="*" />
+                                        <ColumnDefinition Width="Auto" />
+                                    </Grid.ColumnDefinitions>
+                                    <StackPanel>
+                                        <TextBlock Text="{Binding Title}" Style="{StaticResource H2}" />
+                                        <TextBlock Style="{StaticResource Caption}" Margin="0,2,0,0"><Run Text="{Binding Architecture, Mode=OneWay}" /><Run Text="  ·  " /><Run Text="{Binding Milestone, Mode=OneWay}" /></TextBlock>
+                                    </StackPanel>
+                                    <Border Grid.Column="1" CornerRadius="9" Padding="10,3" BorderThickness="1" VerticalAlignment="Top">
+                                        <Border.Style>
+                                            <Style TargetType="Border">
+                                                <Setter Property="BorderBrush" Value="{StaticResource BorderBrush}" />
+                                                <Style.Triggers>
+                                                    <DataTrigger Binding="{Binding HasPipeline}" Value="True">
+                                                        <Setter Property="BorderBrush" Value="{StaticResource WarningBrush}" />
+                                                        <Setter Property="Background" Value="{StaticResource WarningSoftBrush}" />
+                                                    </DataTrigger>
+                                                </Style.Triggers>
+                                            </Style>
+                                        </Border.Style>
+                                        <TextBlock FontSize="11.5">
+                                            <TextBlock.Style>
+                                                <Style TargetType="TextBlock">
+                                                    <Setter Property="Text" Value="Not implemented" />
+                                                    <Setter Property="Foreground" Value="{StaticResource TextMutedBrush}" />
+                                                    <Style.Triggers>
+                                                        <DataTrigger Binding="{Binding HasPipeline}" Value="True">
+                                                            <Setter Property="Text" Value="Experimental – self-made programs only" />
+                                                            <Setter Property="Foreground" Value="{StaticResource WarningBrush}" />
+                                                        </DataTrigger>
+                                                    </Style.Triggers>
+                                                </Style>
+                                            </TextBlock.Style>
+                                        </TextBlock>
+                                    </Border>
+                                </Grid>
+                                <TextBlock Text="{Binding Summary}" Style="{StaticResource Muted}" Margin="0,10,0,0" />
+                                <TextBlock Text="{Binding Counts}" Style="{StaticResource Caption}" Margin="0,6,0,8" />
+                                <ItemsControl ItemsSource="{Binding Modules}">
+                                    <ItemsControl.ItemTemplate>
+                                        <DataTemplate>
+                                            <Grid Margin="0">
+                                                <Grid.ColumnDefinitions>
+                                                    <ColumnDefinition Width="300" />
+                                                    <ColumnDefinition Width="100" />
+                                                    <ColumnDefinition Width="*" />
+                                                </Grid.ColumnDefinitions>
+                                                <TextBlock Text="{Binding Name}" TextWrapping="Wrap" Margin="0,8,12,8" />
+                                                <ContentControl Grid.Column="1" Content="{Binding State}" ContentTemplate="{StaticResource StateBadge}" VerticalAlignment="Top" Margin="0,8,12,8" />
+                                                <TextBlock Grid.Column="2" Text="{Binding Note}" Style="{StaticResource Caption}" Margin="0,9,0,8" />
+                                                <Border Grid.ColumnSpan="3" BorderBrush="{StaticResource BorderBrush}" BorderThickness="0,0,0,1" VerticalAlignment="Bottom" Opacity="0.7" />
+                                            </Grid>
+                                        </DataTemplate>
+                                    </ItemsControl.ItemTemplate>
+                                </ItemsControl>
+                            </StackPanel>
+                        </Border>
+                    </DataTemplate>
+                </ItemsControl.ItemTemplate>
+            </ItemsControl>
+        </StackPanel>
+    </ScrollViewer>
+</UserControl>

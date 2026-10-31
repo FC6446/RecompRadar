@@ -1,12 +1,12 @@
 # Starts RecompRadar once per page with a sample file and saves a screenshot of its window.
 # Usage (from the repository root, after building the app):
-#   powershell -File tools/capture-screenshots.ps1 [-Sample samples/synthetic_mips32_le_r5900_flag.elf] [-OutDir docs/screenshots]
+#   powershell -File tools/capture-screenshots.ps1 [-Sample samples/ps2_style_selftest.elf] [-OutDir docs/screenshots]
 # The app runs with its own temporary data folder (RECOMPRADAR_DATA_DIR), so no real settings or projects are touched.
 param(
     [string]$Exe = 'src/RecompRadar.App/bin/Debug/net10.0-windows/RecompRadar.exe',
-    [string]$Sample = 'samples/synthetic_mips32_le_r5900_flag.elf',
+    [string]$Sample = 'samples/ps2_style_selftest.elf',
     [string]$OutDir = 'docs/screenshots',
-    [string[]]$Pages = @('dashboard', 'analyzer', 'architecture', 'dependencies', 'report', 'projects', 'settings'),
+    [string[]]$Pages = @('dashboard', 'analyzer', 'architecture', 'disassembler', 'consoles', 'recompiler', 'dependencies', 'report', 'projects', 'settings'),
     [int]$WaitSeconds = 4,
     # Samples are copied here and analyzed from here, so screenshots show a neutral path instead of the current user's profile folder.
     [string]$DemoRoot = 'C:\Users\Public\RecompRadar-demo',
