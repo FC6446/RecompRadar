@@ -153,7 +153,7 @@ public sealed record ExecutionResult(
     long InstructionsExecuted,
     string Output,
     string? Message,
-    IReadOnlyList<uint> Registers);
+    IReadOnlyList<ulong> Registers);
 
 /// <summary>
 /// Planned component 6: consumes IR and produces behavior. The only backend today is a reference interpreter;

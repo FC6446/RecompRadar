@@ -79,7 +79,7 @@ public sealed class IrInterpreter : ICodeBackend
                         machine.Pc = regs[branch.ConditionRegister] != 0 ? branch.Taken : branch.NotTaken;
                         break;
                     case IrJumpRegister jr:
-                        machine.Pc = regs[jr.Register];
+                        machine.Pc = (uint)regs[jr.Register];
                         break;
                     case IrSyscall syscall:
                     {
@@ -111,12 +111,15 @@ public sealed class IrInterpreter : ICodeBackend
         }
     }
 
-    private static uint Value(uint[] regs, IrValue v) => v.IsImmediate ? v.Value : regs[v.Value];
+    private static ulong Value(ulong[] regs, IrValue v) => v.IsImmediate ? v.Value : regs[v.Value];
 
-    private static void Execute(GuestMachine m, uint[] regs, IrInstruction i)
+    private static void Execute(GuestMachine m, ulong[] regs, IrInstruction i)
     {
         var a = Value(regs, i.A);
         var b = Value(regs, i.B);
+
+        // Memory addresses are 32 bits wide: the low half of base + offset.
+        var address = unchecked((uint)(a + (ulong)(long)i.Offset));
         switch (i.Op)
         {
             case IrOp.Const:
@@ -145,49 +148,82 @@ public sealed class IrInterpreter : ICodeBackend
                 regs[i.Dest] = ~(a | b);
                 break;
             case IrOp.Shl:
-                regs[i.Dest] = a << (int)(b & 31);
+                regs[i.Dest] = a << (int)(b & 63);
                 break;
             case IrOp.Shr:
-                regs[i.Dest] = a >> (int)(b & 31);
+                regs[i.Dest] = a >> (int)(b & 63);
                 break;
             case IrOp.Sar:
-                regs[i.Dest] = (uint)((int)a >> (int)(b & 31));
+                regs[i.Dest] = unchecked((ulong)((long)a >> (int)(b & 63)));
+                break;
+            case IrOp.AddW:
+                regs[i.Dest] = Sem.Sx(unchecked((uint)(a + b)));
+                break;
+            case IrOp.SubW:
+                regs[i.Dest] = Sem.Sx(unchecked((uint)(a - b)));
+                break;
+            case IrOp.MulW:
+                regs[i.Dest] = Sem.Sx(unchecked((uint)(a * b)));
+                break;
+            case IrOp.ShlW:
+                regs[i.Dest] = Sem.Sx((uint)a << (int)(b & 31));
+                break;
+            case IrOp.ShrW:
+                regs[i.Dest] = Sem.Sx((uint)a >> (int)(b & 31));
+                break;
+            case IrOp.SarW:
+                regs[i.Dest] = Sem.Sx(unchecked((uint)((int)(uint)a >> (int)(b & 31))));
+                break;
+            case IrOp.Sext32:
+                regs[i.Dest] = Sem.Sx((uint)a);
+                break;
+            case IrOp.Zext32:
+                regs[i.Dest] = (uint)a;
                 break;
             case IrOp.SetEq:
-                regs[i.Dest] = a == b ? 1u : 0u;
+                regs[i.Dest] = a == b ? 1UL : 0UL;
                 break;
             case IrOp.SetNe:
-                regs[i.Dest] = a != b ? 1u : 0u;
+                regs[i.Dest] = a != b ? 1UL : 0UL;
                 break;
             case IrOp.SetLtSigned:
-                regs[i.Dest] = (int)a < (int)b ? 1u : 0u;
+                regs[i.Dest] = (long)a < (long)b ? 1UL : 0UL;
                 break;
             case IrOp.SetLtUnsigned:
-                regs[i.Dest] = a < b ? 1u : 0u;
+                regs[i.Dest] = a < b ? 1UL : 0UL;
                 break;
             case IrOp.LoadS8:
-                regs[i.Dest] = m.Load(unchecked(a + (uint)i.Offset), 1, signExtend: true);
+                regs[i.Dest] = Sem.Sx(m.Load(address, 1, signExtend: true));
                 break;
             case IrOp.LoadU8:
-                regs[i.Dest] = m.Load(unchecked(a + (uint)i.Offset), 1, signExtend: false);
+                regs[i.Dest] = m.Load(address, 1, signExtend: false);
                 break;
             case IrOp.LoadS16:
-                regs[i.Dest] = m.Load(unchecked(a + (uint)i.Offset), 2, signExtend: true);
+                regs[i.Dest] = Sem.Sx(m.Load(address, 2, signExtend: true));
                 break;
             case IrOp.LoadU16:
-                regs[i.Dest] = m.Load(unchecked(a + (uint)i.Offset), 2, signExtend: false);
+                regs[i.Dest] = m.Load(address, 2, signExtend: false);
                 break;
-            case IrOp.Load32:
-                regs[i.Dest] = m.Load(unchecked(a + (uint)i.Offset), 4, signExtend: false);
+            case IrOp.LoadS32:
+                regs[i.Dest] = Sem.Sx(m.Load(address, 4, signExtend: false));
+                break;
+            case IrOp.LoadU32:
+                regs[i.Dest] = m.Load(address, 4, signExtend: false);
+                break;
+            case IrOp.Load64:
+                regs[i.Dest] = m.Load64(address);
                 break;
             case IrOp.Store8:
-                m.Store(unchecked(a + (uint)i.Offset), 1, b);
+                m.Store(address, 1, (uint)b);
                 break;
             case IrOp.Store16:
-                m.Store(unchecked(a + (uint)i.Offset), 2, b);
+                m.Store(address, 2, (uint)b);
                 break;
             case IrOp.Store32:
-                m.Store(unchecked(a + (uint)i.Offset), 4, b);
+                m.Store(address, 4, (uint)b);
+                break;
+            case IrOp.Store64:
+                m.Store64(address, b);
                 break;
             case IrOp.MulHiS:
                 regs[i.Dest] = Sem.MulHiS(a, b);

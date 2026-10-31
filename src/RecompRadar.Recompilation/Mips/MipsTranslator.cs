@@ -5,7 +5,10 @@ using RecompRadar.Recompilation.IR;
 namespace RecompRadar.Recompilation.Mips;
 
 /// <summary>
-/// Lifts the supported MIPS32 subset into the 32-bit IR, one basic block at a time.
+/// Lifts the supported MIPS subset (MIPS32 integer, the 64-bit integer instructions of MIPS III/R5900, HI/LO and the
+/// single-precision FPU) into the 64-bit IR, one basic block at a time.
+/// 32-bit instructions use the "W" IR operations, which sign-extend their result to 64 bits like MIPS64 does; the 64-bit
+/// instructions use the plain operations.
 /// Branch delay slots are folded into the block: the condition (or jump target) is evaluated first, the delay-slot
 /// instruction is translated next, and the branch takes effect afterwards, exactly as on the hardware.
 /// </summary>
@@ -21,7 +24,7 @@ public sealed class MipsTranslator : ICodeTranslator
     /// <summary>Writes to $zero are redirected here; this register is never read.</summary>
     public const int ScratchRegister = Regs.Scratch;
 
-    public string Name => "MIPS32 integer/FPU subset to IR translator";
+    public string Name => "MIPS32/R5900 integer and FPU subset to IR translator";
 
     public IrBlock TranslateBlock(IMemoryReader memory, Endianness endianness, ulong address) =>
         TranslateBlock(memory, endianness, address, NoLeaders);
@@ -88,6 +91,9 @@ public sealed class MipsTranslator : ICodeTranslator
 
     private static IrValue Fpr(int index) => IrValue.Reg(Regs.Fpr(index));
 
+    /// <summary>A sign-extended 16-bit immediate as a 64-bit constant.</summary>
+    private static IrValue SImm(MipsWord w) => IrValue.Imm(unchecked((ulong)(long)w.SImm));
+
     private static void Emit(IrBlock block, ulong pc, IrOp op, int dest, IrValue a, IrValue b, int offset = 0) =>
         block.Instructions.Add(new IrInstruction(op, dest, a, b, offset, pc));
 
@@ -120,7 +126,7 @@ public sealed class MipsTranslator : ICodeTranslator
         IrTerminator Unsupported()
         {
             var decoded = MipsDecoder.DecodeWord(w.Raw, pc);
-            var detail = MipsDecoder.IsDecodedButUntranslated(w.Raw) ? " (branch-likely instructions are not supported yet)" : string.Empty;
+            var detail = MipsDecoder.UntranslatedDetail(w.Raw) is { } text ? $" ({text})" : string.Empty;
             return new IrStop($"unsupported instruction 0x{w.Raw:X8} ({decoded.Mnemonic}) at 0x{pc:X8}{detail}", decoded.Mnemonic, pc, w.Raw);
         }
 
@@ -135,10 +141,22 @@ public sealed class MipsTranslator : ICodeTranslator
             emitCondition();
             if (link != 0)
             {
-                Emit(block, pc, IrOp.Const, 31, IrValue.Imm((uint)link), default);
+                Emit(block, pc, IrOp.Const, 31, IrValue.Imm32((uint)link), default);
             }
 
             return WithDelaySlot(() => new IrBranch(Temp0, taken, pc + 8));
+        }
+
+        IrTerminator? Op3(IrOp op)
+        {
+            Emit(block, pc, op, Dest(w.Rd), Src(w.Rs), Src(w.Rt));
+            return null;
+        }
+
+        IrTerminator? Shift(IrOp op, int amount = -1, bool byRegister = false)
+        {
+            Emit(block, pc, op, Dest(w.Rd), Src(w.Rt), byRegister ? Src(w.Rs) : IrValue.Imm((ulong)(amount >= 0 ? amount : w.Sa)));
+            return null;
         }
 
         switch (w.Op)
@@ -147,27 +165,17 @@ public sealed class MipsTranslator : ICodeTranslator
                 switch (w.Funct)
                 {
                     case 0x00:
-                        if (w.Raw != 0)
-                        {
-                            Emit(block, pc, IrOp.Shl, Dest(w.Rd), Src(w.Rt), IrValue.Imm((uint)w.Sa));
-                        }
-
-                        return null;
+                        return w.Raw != 0 ? Shift(IrOp.ShlW) : null;
                     case 0x02:
-                        Emit(block, pc, IrOp.Shr, Dest(w.Rd), Src(w.Rt), IrValue.Imm((uint)w.Sa));
-                        return null;
+                        return Shift(IrOp.ShrW);
                     case 0x03:
-                        Emit(block, pc, IrOp.Sar, Dest(w.Rd), Src(w.Rt), IrValue.Imm((uint)w.Sa));
-                        return null;
+                        return Shift(IrOp.SarW);
                     case 0x04:
-                        Emit(block, pc, IrOp.Shl, Dest(w.Rd), Src(w.Rt), Src(w.Rs));
-                        return null;
+                        return Shift(IrOp.ShlW, byRegister: true);
                     case 0x06:
-                        Emit(block, pc, IrOp.Shr, Dest(w.Rd), Src(w.Rt), Src(w.Rs));
-                        return null;
+                        return Shift(IrOp.ShrW, byRegister: true);
                     case 0x07:
-                        Emit(block, pc, IrOp.Sar, Dest(w.Rd), Src(w.Rt), Src(w.Rs));
-                        return null;
+                        return Shift(IrOp.SarW, byRegister: true);
                     case 0x08:
                     {
                         if (inDelaySlot)
@@ -187,16 +195,14 @@ public sealed class MipsTranslator : ICodeTranslator
                         }
 
                         Emit(block, pc, IrOp.Move, Temp0, Src(w.Rs), default);
-                        Emit(block, pc, IrOp.Const, Dest(w.Rd), IrValue.Imm((uint)(pc + 8)), default);
+                        Emit(block, pc, IrOp.Const, Dest(w.Rd), IrValue.Imm32((uint)(pc + 8)), default);
                         return WithDelaySlot(() => new IrJumpRegister(Temp0, w.Rs, IsCall: true, ReturnAddress: pc + 8));
                     }
 
                     case 0x0A:
-                        Emit(block, pc, IrOp.MoveIfZero, Dest(w.Rd), Src(w.Rs), Src(w.Rt));
-                        return null;
+                        return Op3(IrOp.MoveIfZero);
                     case 0x0B:
-                        Emit(block, pc, IrOp.MoveIfNonZero, Dest(w.Rd), Src(w.Rs), Src(w.Rt));
-                        return null;
+                        return Op3(IrOp.MoveIfNonZero);
                     case 0x0C:
                         return inDelaySlot ? Stop($"a syscall inside a delay slot at 0x{pc:X8} is not supported", w.Raw, pc) : new IrSyscall(pc + 4);
                     case 0x0D:
@@ -215,10 +221,17 @@ public sealed class MipsTranslator : ICodeTranslator
                     case 0x13:
                         Emit(block, pc, IrOp.Move, Regs.Lo, Src(w.Rs), default);
                         return null;
+                    case 0x14:
+                        return Shift(IrOp.Shl, byRegister: true);
+                    case 0x16:
+                        return Shift(IrOp.Shr, byRegister: true);
+                    case 0x17:
+                        return Shift(IrOp.Sar, byRegister: true);
                     case 0x18:
                     case 0x19:
+                        // 32-bit multiply of the low halves: LO and HI get the sign-extended halves of the 64-bit product.
                         // The R5900 variant with a non-zero rd also copies the low word to rd.
-                        Emit(block, pc, IrOp.Mul, Temp1, Src(w.Rs), Src(w.Rt));
+                        Emit(block, pc, IrOp.MulW, Temp1, Src(w.Rs), Src(w.Rt));
                         Emit(block, pc, w.Funct == 0x18 ? IrOp.MulHiS : IrOp.MulHiU, Regs.Hi, Src(w.Rs), Src(w.Rt));
                         Emit(block, pc, IrOp.Move, Regs.Lo, IrValue.Reg(Temp1), default);
                         if (w.Rd != 0)
@@ -236,37 +249,47 @@ public sealed class MipsTranslator : ICodeTranslator
                     case 0x20:
                     case 0x21:
                         // add traps on signed overflow on real hardware; that trap is not modelled (wrapping addition).
-                        Emit(block, pc, IrOp.Add, Dest(w.Rd), Src(w.Rs), Src(w.Rt));
-                        return null;
+                        return Op3(IrOp.AddW);
                     case 0x22:
                     case 0x23:
-                        Emit(block, pc, IrOp.Sub, Dest(w.Rd), Src(w.Rs), Src(w.Rt));
-                        return null;
+                        return Op3(IrOp.SubW);
                     case 0x24:
-                        Emit(block, pc, IrOp.And, Dest(w.Rd), Src(w.Rs), Src(w.Rt));
-                        return null;
+                        return Op3(IrOp.And);
                     case 0x25:
-                        Emit(block, pc, IrOp.Or, Dest(w.Rd), Src(w.Rs), Src(w.Rt));
-                        return null;
+                        return Op3(IrOp.Or);
                     case 0x26:
-                        Emit(block, pc, IrOp.Xor, Dest(w.Rd), Src(w.Rs), Src(w.Rt));
-                        return null;
+                        return Op3(IrOp.Xor);
                     case 0x27:
-                        Emit(block, pc, IrOp.Nor, Dest(w.Rd), Src(w.Rs), Src(w.Rt));
-                        return null;
+                        return Op3(IrOp.Nor);
                     case 0x2A:
-                        Emit(block, pc, IrOp.SetLtSigned, Dest(w.Rd), Src(w.Rs), Src(w.Rt));
-                        return null;
+                        return Op3(IrOp.SetLtSigned);
                     case 0x2B:
-                        Emit(block, pc, IrOp.SetLtUnsigned, Dest(w.Rd), Src(w.Rs), Src(w.Rt));
-                        return null;
+                        return Op3(IrOp.SetLtUnsigned);
+                    case 0x2C:
+                    case 0x2D:
+                        // dadd traps on signed overflow on real hardware; that trap is not modelled (wrapping addition).
+                        return Op3(IrOp.Add);
+                    case 0x2E:
+                    case 0x2F:
+                        return Op3(IrOp.Sub);
+                    case 0x38:
+                        return Shift(IrOp.Shl);
+                    case 0x3A:
+                        return Shift(IrOp.Shr);
+                    case 0x3B:
+                        return Shift(IrOp.Sar);
+                    case 0x3C:
+                        return Shift(IrOp.Shl, w.Sa + 32);
+                    case 0x3E:
+                        return Shift(IrOp.Shr, w.Sa + 32);
+                    case 0x3F:
+                        return Shift(IrOp.Sar, w.Sa + 32);
                     default:
                         return Unsupported();
                 }
 
             case 0x1C when w.Funct == 0x02:
-                Emit(block, pc, IrOp.Mul, Dest(w.Rd), Src(w.Rs), Src(w.Rt));
-                return null;
+                return Op3(IrOp.MulW);
 
             case 0x01 when w.Rt is 0 or 1 or 0x10 or 0x11:
             {
@@ -296,7 +319,7 @@ public sealed class MipsTranslator : ICodeTranslator
                 var isCall = w.Op == 0x03;
                 if (isCall)
                 {
-                    Emit(block, pc, IrOp.Const, 31, IrValue.Imm((uint)(pc + 8)), default);
+                    Emit(block, pc, IrOp.Const, 31, IrValue.Imm32((uint)(pc + 8)), default);
                 }
 
                 return WithDelaySlot(() => new IrJump(target, isCall));
@@ -320,13 +343,13 @@ public sealed class MipsTranslator : ICodeTranslator
 
             case 0x08:
             case 0x09:
-                Emit(block, pc, IrOp.Add, Dest(w.Rt), Src(w.Rs), IrValue.Imm((uint)w.SImm));
+                Emit(block, pc, IrOp.AddW, Dest(w.Rt), Src(w.Rs), SImm(w));
                 return null;
             case 0x0A:
-                Emit(block, pc, IrOp.SetLtSigned, Dest(w.Rt), Src(w.Rs), IrValue.Imm((uint)w.SImm));
+                Emit(block, pc, IrOp.SetLtSigned, Dest(w.Rt), Src(w.Rs), SImm(w));
                 return null;
             case 0x0B:
-                Emit(block, pc, IrOp.SetLtUnsigned, Dest(w.Rt), Src(w.Rs), IrValue.Imm((uint)w.SImm));
+                Emit(block, pc, IrOp.SetLtUnsigned, Dest(w.Rt), Src(w.Rs), SImm(w));
                 return null;
             case 0x0C:
                 Emit(block, pc, IrOp.And, Dest(w.Rt), Src(w.Rs), IrValue.Imm(w.Imm));
@@ -338,7 +361,13 @@ public sealed class MipsTranslator : ICodeTranslator
                 Emit(block, pc, IrOp.Xor, Dest(w.Rt), Src(w.Rs), IrValue.Imm(w.Imm));
                 return null;
             case 0x0F:
-                Emit(block, pc, IrOp.Const, Dest(w.Rt), IrValue.Imm(w.Imm << 16), default);
+                Emit(block, pc, IrOp.Const, Dest(w.Rt), IrValue.Imm32(w.Imm << 16), default);
+                return null;
+
+            case 0x18:
+            case 0x19:
+                // daddi traps on signed overflow on real hardware; that trap is not modelled (wrapping addition).
+                Emit(block, pc, IrOp.Add, Dest(w.Rt), Src(w.Rs), SImm(w));
                 return null;
 
             case 0x11:
@@ -351,13 +380,19 @@ public sealed class MipsTranslator : ICodeTranslator
                 Emit(block, pc, IrOp.LoadS16, Dest(w.Rt), Src(w.Rs), default, w.SImm);
                 return null;
             case 0x23:
-                Emit(block, pc, IrOp.Load32, Dest(w.Rt), Src(w.Rs), default, w.SImm);
+                Emit(block, pc, IrOp.LoadS32, Dest(w.Rt), Src(w.Rs), default, w.SImm);
                 return null;
             case 0x24:
                 Emit(block, pc, IrOp.LoadU8, Dest(w.Rt), Src(w.Rs), default, w.SImm);
                 return null;
             case 0x25:
                 Emit(block, pc, IrOp.LoadU16, Dest(w.Rt), Src(w.Rs), default, w.SImm);
+                return null;
+            case 0x27:
+                Emit(block, pc, IrOp.LoadU32, Dest(w.Rt), Src(w.Rs), default, w.SImm);
+                return null;
+            case 0x37:
+                Emit(block, pc, IrOp.Load64, Dest(w.Rt), Src(w.Rs), default, w.SImm);
                 return null;
             case 0x28:
                 Emit(block, pc, IrOp.Store8, 0, Src(w.Rs), Src(w.Rt), w.SImm);
@@ -368,11 +403,14 @@ public sealed class MipsTranslator : ICodeTranslator
             case 0x2B:
                 Emit(block, pc, IrOp.Store32, 0, Src(w.Rs), Src(w.Rt), w.SImm);
                 return null;
+            case 0x3F:
+                Emit(block, pc, IrOp.Store64, 0, Src(w.Rs), Src(w.Rt), w.SImm);
+                return null;
             case 0x2F: // cache
             case 0x33: // pref
                 return null; // cache behaviour is not modelled; both are architecturally invisible to correct programs
             case 0x31:
-                Emit(block, pc, IrOp.Load32, Regs.Fpr(w.Ft), Src(w.Rs), default, w.SImm);
+                Emit(block, pc, IrOp.LoadU32, Regs.Fpr(w.Ft), Src(w.Rs), default, w.SImm);
                 return null;
             case 0x39:
                 Emit(block, pc, IrOp.Store32, 0, Src(w.Rs), Fpr(w.Ft), w.SImm);
@@ -392,11 +430,11 @@ public sealed class MipsTranslator : ICodeTranslator
     {
         switch (w.Fmt)
         {
-            case 0: // mfc1
-                Emit(block, pc, IrOp.Move, Dest(w.Rt), Fpr(w.Fs), default);
+            case 0: // mfc1: the 32-bit value is sign-extended into the 64-bit register
+                Emit(block, pc, IrOp.Sext32, Dest(w.Rt), Fpr(w.Fs), default);
                 return null;
-            case 4: // mtc1
-                Emit(block, pc, IrOp.Move, Regs.Fpr(w.Fs), Src(w.Rt), default);
+            case 4: // mtc1: the low 32 bits go into the floating-point register
+                Emit(block, pc, IrOp.Zext32, Regs.Fpr(w.Fs), Src(w.Rt), default);
                 return null;
             case 8 when w.Rt is 0 or 1: // bc1f / bc1t
             {

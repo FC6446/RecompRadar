@@ -45,7 +45,7 @@ public sealed class GuestMachine : IMemoryReader
         }
     }
 
-    public uint[] Registers { get; } = new uint[RegisterCount];
+    public ulong[] Registers { get; } = new ulong[RegisterCount];
 
     public ulong Pc { get; set; }
 
@@ -195,6 +195,68 @@ public sealed class GuestMachine : IMemoryReader
 
             default:
                 return little ? BinaryPrimitives.ReadUInt32LittleEndian(span) : BinaryPrimitives.ReadUInt32BigEndian(span);
+        }
+    }
+
+    public ulong Load64(ulong address)
+    {
+        address &= 0xFFFFFFFF;
+        if (Ps2 is not null)
+        {
+            return Ps2.Load64((uint)address);
+        }
+
+        if (address % 8 != 0)
+        {
+            throw new GuestFaultException($"Unaligned 8-byte read at 0x{address:X8}.");
+        }
+
+        if (!TryLocate(address, 8, out var region, out var offset))
+        {
+            throw new GuestFaultException($"Read of 8 byte(s) at unmapped address 0x{address:X8}.");
+        }
+
+        var span = region.Data.AsSpan(offset, 8);
+        return Endianness == Endianness.Little ? BinaryPrimitives.ReadUInt64LittleEndian(span) : BinaryPrimitives.ReadUInt64BigEndian(span);
+    }
+
+    public void Store64(ulong address, ulong value)
+    {
+        address &= 0xFFFFFFFF;
+        if (Ps2 is not null)
+        {
+            Ps2.Store64((uint)address, value);
+            return;
+        }
+
+        if (address % 8 != 0)
+        {
+            throw new GuestFaultException($"Unaligned 8-byte write at 0x{address:X8}.");
+        }
+
+        if (!TryLocate(address, 8, out var region, out var offset))
+        {
+            throw new GuestFaultException($"Write of 8 byte(s) at unmapped address 0x{address:X8}.");
+        }
+
+        if (!region.Writable)
+        {
+            throw new GuestFaultException($"Write to read-only memory at 0x{address:X8}.");
+        }
+
+        var span = region.Data.AsSpan(offset, 8);
+        if (Endianness == Endianness.Little)
+        {
+            BinaryPrimitives.WriteUInt64LittleEndian(span, value);
+        }
+        else
+        {
+            BinaryPrimitives.WriteUInt64BigEndian(span, value);
+        }
+
+        if (region.Executable)
+        {
+            CodeWritten = true;
         }
     }
 

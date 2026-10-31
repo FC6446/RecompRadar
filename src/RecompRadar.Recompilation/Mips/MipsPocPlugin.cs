@@ -9,7 +9,7 @@ namespace RecompRadar.Recompilation.Mips;
 /// <summary>
 /// Recompiler plugin for 32-bit MIPS: it decodes and translates the integer, HI/LO and single-precision FPU subset, analyzes the control flow,
 /// can run programs on a reference interpreter and can generate Windows programs. It is meant for self-made test programs and the PS2 CPU pipeline;
-/// it has no 128-bit multimedia instructions, no vector units, no coprocessor 0 and no console system interfaces, so it cannot run commercial software.
+/// it has no 128-bit registers or multimedia instructions, no vector units, no coprocessor 0 and no console system interfaces, so it cannot run commercial software.
 /// </summary>
 public sealed class MipsPocPlugin : IRecompilerPlugin
 {
@@ -18,12 +18,12 @@ public sealed class MipsPocPlugin : IRecompilerPlugin
 
     public string Id => "recompradar.mips32-poc";
 
-    public string DisplayName => "MIPS32 subset (integer, HI/LO, single-precision FPU)";
+    public string DisplayName => "MIPS32/R5900 subset (32- and 64-bit integer, HI/LO, single-precision FPU)";
 
     public string Description =>
-        "Decodes and translates the integer, HI/LO and single-precision FPU subset of 32-bit MIPS into a 32-bit IR, runs it on a reference interpreter " +
-        "and can generate a Windows executable from it. Intended for self-made test programs. No branch-likely instructions, no unaligned loads/stores, " +
-        "no 128-bit multimedia (MMI) or vector unit instructions, no console system interfaces.";
+        "Decodes and translates the 32- and 64-bit integer, HI/LO and single-precision FPU subset of MIPS (as used by the R5900) into a 64-bit IR, runs it on a reference interpreter " +
+        "and can generate a Windows executable from it. Intended for self-made test programs. No branch-likely instructions, no unaligned loads/stores, no 64-bit multiply/divide, " +
+        "no 128-bit registers or multimedia (MMI) instructions, no vector unit instructions, no console system interfaces.";
 
     public PluginCapabilities Capabilities =>
         PluginCapabilities.Loader | PluginCapabilities.Decoder | PluginCapabilities.Translator | PluginCapabilities.Runtime | PluginCapabilities.Backend;

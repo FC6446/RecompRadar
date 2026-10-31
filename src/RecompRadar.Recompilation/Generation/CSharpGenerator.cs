@@ -334,17 +334,17 @@ public static class CSharpGenerator
         sb.AppendLine("    {");
         foreach (var reg in use.Persistent)
         {
-            sb.AppendLine(use.NeedLoad.Contains(reg) ? $"        uint {Regs.Name(reg)} = c.R[{reg}];" : $"        uint {Regs.Name(reg)} = 0;");
+            sb.AppendLine(use.NeedLoad.Contains(reg) ? $"        ulong {Regs.Name(reg)} = c.R[{reg}];" : $"        ulong {Regs.Name(reg)} = 0;");
         }
 
         foreach (var reg in use.Temporaries)
         {
-            sb.AppendLine($"        uint {Regs.Name(reg)} = 0;");
+            sb.AppendLine($"        ulong {Regs.Name(reg)} = 0;");
         }
 
         if (block.Instructions.Any(i => i.Dest == Regs.Scratch || i.Dest == 0))
         {
-            sb.AppendLine("        uint scratch = 0;");
+            sb.AppendLine("        ulong scratch = 0;");
         }
 
         foreach (var i in block.Instructions)
@@ -364,10 +364,10 @@ public static class CSharpGenerator
                 sb.AppendLine($"        return 0x{j.Target:X8}u;");
                 break;
             case IrBranch b:
-                sb.AppendLine($"        return {Regs.Name(b.ConditionRegister)} != 0u ? 0x{b.Taken:X8}u : 0x{b.NotTaken:X8}u;");
+                sb.AppendLine($"        return {Regs.Name(b.ConditionRegister)} != 0UL ? 0x{b.Taken:X8}u : 0x{b.NotTaken:X8}u;");
                 break;
             case IrJumpRegister r:
-                sb.AppendLine($"        return {Regs.Name(r.Register)};");
+                sb.AppendLine($"        return unchecked((uint){Regs.Name(r.Register)});");
                 break;
             case IrSyscall s:
                 sb.AppendLine($"        return c.Syscall(0x{s.Continuation:X8}u);");
@@ -385,18 +385,21 @@ public static class CSharpGenerator
 
     private static string Name(int reg) => reg == 0 ? "scratch" : Regs.Name(reg);
 
-    private static string U(IrValue v) => v.IsImmediate ? $"0x{v.Value:X}u" : v.Value == 0 ? "0u" : Regs.Name((int)v.Value);
+    /// <summary>A 64-bit operand: an immediate (always written as an unsigned 64-bit literal) or a register local.</summary>
+    private static string U(IrValue v) => v.IsImmediate ? $"0x{v.Value:X}UL" : v.Value == 0 ? "0UL" : Regs.Name((int)v.Value);
 
-    private static string S(IrValue v) => $"unchecked((int){U(v)})";
+    private static string S(IrValue v) => $"unchecked((long){U(v)})";
 
+    /// <summary>The 32-bit memory address: the low half of base + offset.</summary>
     private static string Address(IrValue baseAddress, int offset) =>
-        offset == 0 ? U(baseAddress) : $"unchecked({U(baseAddress)} + 0x{(uint)offset:X}u)";
+        offset == 0 ? $"unchecked((uint){U(baseAddress)})" : $"unchecked((uint)({U(baseAddress)} + 0x{(ulong)(long)offset:X}UL))";
 
     private static string Statement(IrInstruction i)
     {
         var d = Name(i.Dest);
         var a = U(i.A);
         var b = U(i.B);
+        var addr = IrInstruction.IsLoad(i.Op) || IrInstruction.IsStore(i.Op) ? Address(i.A, i.Offset) : string.Empty;
         return i.Op switch
         {
             IrOp.Const or IrOp.Move => $"{d} = {a};",
@@ -407,29 +410,40 @@ public static class CSharpGenerator
             IrOp.Or => $"{d} = {a} | {b};",
             IrOp.Xor => $"{d} = {a} ^ {b};",
             IrOp.Nor => $"{d} = ~({a} | {b});",
-            IrOp.Shl => $"{d} = {a} << (int)({b} & 31u);",
-            IrOp.Shr => $"{d} = {a} >> (int)({b} & 31u);",
-            IrOp.Sar => $"{d} = unchecked((uint)({S(i.A)} >> (int)({b} & 31u)));",
-            IrOp.SetEq => $"{d} = {a} == {b} ? 1u : 0u;",
-            IrOp.SetNe => $"{d} = {a} != {b} ? 1u : 0u;",
-            IrOp.SetLtSigned => $"{d} = {S(i.A)} < {S(i.B)} ? 1u : 0u;",
-            IrOp.SetLtUnsigned => $"{d} = {a} < {b} ? 1u : 0u;",
-            IrOp.LoadS8 => $"{d} = c.Mem.LoadS8({Address(i.A, i.Offset)});",
-            IrOp.LoadU8 => $"{d} = c.Mem.LoadU8({Address(i.A, i.Offset)});",
-            IrOp.LoadS16 => $"{d} = c.Mem.LoadS16({Address(i.A, i.Offset)});",
-            IrOp.LoadU16 => $"{d} = c.Mem.LoadU16({Address(i.A, i.Offset)});",
-            IrOp.Load32 => $"{d} = c.Mem.Load32({Address(i.A, i.Offset)});",
-            IrOp.Store8 => $"c.Mem.Store8({Address(i.A, i.Offset)}, {b});",
-            IrOp.Store16 => $"c.Mem.Store16({Address(i.A, i.Offset)}, {b});",
-            IrOp.Store32 => $"c.Mem.Store32({Address(i.A, i.Offset)}, {b});",
+            IrOp.Shl => $"{d} = {a} << (int)({b} & 63UL);",
+            IrOp.Shr => $"{d} = {a} >> (int)({b} & 63UL);",
+            IrOp.Sar => $"{d} = unchecked((ulong)({S(i.A)} >> (int)({b} & 63UL)));",
+            IrOp.AddW => $"{d} = Sem.Sx(unchecked((uint)({a} + {b})));",
+            IrOp.SubW => $"{d} = Sem.Sx(unchecked((uint)({a} - {b})));",
+            IrOp.MulW => $"{d} = Sem.Sx(unchecked((uint)({a} * {b})));",
+            IrOp.ShlW => $"{d} = Sem.Sx(unchecked((uint){a}) << (int)({b} & 31UL));",
+            IrOp.ShrW => $"{d} = Sem.Sx(unchecked((uint){a}) >> (int)({b} & 31UL));",
+            IrOp.SarW => $"{d} = Sem.Sx(unchecked((uint)((int)(uint){a} >> (int)({b} & 31UL))));",
+            IrOp.Sext32 => $"{d} = Sem.Sx(unchecked((uint){a}));",
+            IrOp.Zext32 => $"{d} = unchecked((ulong)(uint){a});",
+            IrOp.SetEq => $"{d} = {a} == {b} ? 1UL : 0UL;",
+            IrOp.SetNe => $"{d} = {a} != {b} ? 1UL : 0UL;",
+            IrOp.SetLtSigned => $"{d} = {S(i.A)} < {S(i.B)} ? 1UL : 0UL;",
+            IrOp.SetLtUnsigned => $"{d} = {a} < {b} ? 1UL : 0UL;",
+            IrOp.LoadS8 => $"{d} = Sem.Sx(c.Mem.LoadS8({addr}));",
+            IrOp.LoadU8 => $"{d} = c.Mem.LoadU8({addr});",
+            IrOp.LoadS16 => $"{d} = Sem.Sx(c.Mem.LoadS16({addr}));",
+            IrOp.LoadU16 => $"{d} = c.Mem.LoadU16({addr});",
+            IrOp.LoadS32 => $"{d} = Sem.Sx(c.Mem.Load32({addr}));",
+            IrOp.LoadU32 => $"{d} = c.Mem.Load32({addr});",
+            IrOp.Load64 => $"{d} = c.Mem.Load64({addr});",
+            IrOp.Store8 => $"c.Mem.Store8({addr}, unchecked((uint){b}));",
+            IrOp.Store16 => $"c.Mem.Store16({addr}, unchecked((uint){b}));",
+            IrOp.Store32 => $"c.Mem.Store32({addr}, unchecked((uint){b}));",
+            IrOp.Store64 => $"c.Mem.Store64({addr}, {b});",
             IrOp.MulHiS => $"{d} = Sem.MulHiS({a}, {b});",
             IrOp.MulHiU => $"{d} = Sem.MulHiU({a}, {b});",
             IrOp.DivS => $"{d} = Sem.DivS({a}, {b});",
             IrOp.RemS => $"{d} = Sem.RemS({a}, {b});",
             IrOp.DivU => $"{d} = Sem.DivU({a}, {b});",
             IrOp.RemU => $"{d} = Sem.RemU({a}, {b});",
-            IrOp.MoveIfZero => $"if ({b} == 0u) {d} = {a};",
-            IrOp.MoveIfNonZero => $"if ({b} != 0u) {d} = {a};",
+            IrOp.MoveIfZero => $"if ({b} == 0UL) {d} = {a};",
+            IrOp.MoveIfNonZero => $"if ({b} != 0UL) {d} = {a};",
             IrOp.FAdd => $"{d} = Sem.FAdd({a}, {b});",
             IrOp.FSub => $"{d} = Sem.FSub({a}, {b});",
             IrOp.FMul => $"{d} = Sem.FMul({a}, {b});",

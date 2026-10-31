@@ -4,12 +4,12 @@ The `RecompRadar.Recompilation` project defines the interfaces a recompiler is b
 for 32-bit MIPS that exercises all of them. How the pieces fit into the pipeline (analysis, C# generation, Windows build,
 validation) is described in [recompilation.md](recompilation.md).
 
-**What the MIPS plugin is:** a loader, a decoder, a translator to a 32-bit IR, a reference interpreter and a code
+**What the MIPS plugin is:** a loader, a decoder, a translator to a 64-bit IR, a reference interpreter and a code
 generator for the MIPS32 integer, HI/LO and single-precision FPU subset. It is used for *self-made* test programs
 (`samples/poc_*.elf`, `samples/ps2_style_selftest.elf`) and as the CPU part of the PlayStation 2 backend.
 
 **What it is not:** it cannot run commercial software. It has no branch-likely instructions, no unaligned loads and stores,
-no 64-bit or 128-bit (MMI) R5900 instructions, no coprocessor 0, no vector units and no console system interfaces. The
+no 128-bit registers or MMI instructions, no 64-bit multiply/divide, no coprocessor 0, no vector units and no console system interfaces. The
 built programs are translated code on the .NET JIT, not ahead-of-time machine code.
 
 ## The six building blocks
@@ -18,7 +18,7 @@ built programs are translated code on the .NET JIT, not ahead-of-time machine co
 | --- | --- | --- | --- |
 | 1 | Binary loader | `IBinaryLoader` | `ElfImageLoader` – maps `PT_LOAD` segments, validates sizes, offsets and overlaps |
 | 2 | Architecture decoder | `IArchitectureDecoder` | `MipsDecoder` – readable disassembly, unknown words are shown as `.word` |
-| 3 | Intermediate representation | `IR.IrBlock`, `IrInstruction`, `IrTerminator` | 32-bit three-address code; 128 virtual registers (0-31 guest GPRs, HI/LO, FPU condition, 32 FPU registers as raw bits, block-local temporaries) |
+| 3 | Intermediate representation | `IR.IrBlock`, `IrInstruction`, `IrTerminator` | 64-bit three-address code; 128 virtual registers of 64 bits (0-31 guest GPRs, HI/LO, FPU condition, 32 FPU registers as raw bits, block-local temporaries) |
 | 4 | Code translator | `ICodeTranslator` | `MipsTranslator` – one basic block at a time, delay slots folded into the block |
 | 5 | Runtime compatibility layer | `IRuntimeCompatibilityLayer` | `PocRuntime` – exit, write byte/integer/float/string (RecompRadar's own tiny ABI, not a console's); `Ps2Runtime` for the PlayStation 2 profile (EE memory map, serial output, 18 kernel calls) |
 | 6 | Backend | `ICodeBackend` (`IsNative`), `CSharpGenerator` | `IrInterpreter` – reference interpreter, `IsNative == false`; `CSharpGenerator` produces a project that builds into a Windows program (translated code with runtime, not AOT machine code) |
@@ -85,7 +85,7 @@ guest instructions; every invalid memory access becomes a `Faulted` result, neve
 
 ## Where it goes from here
 
-See "Plan for the remaining milestones" in [recompilation.md](recompilation.md): 64-bit registers in the IR, the PS2 runtime
+See "Plan for the remaining milestones" in [recompilation.md](recompilation.md): unaligned and 128-bit instructions, the PS2 runtime
 (EE kernel services, memory map, input, graphics), a PowerPC 64 plugin, an x86-64 loader, and a backend that produces
 fully native code on machines that have a compiler toolchain. Each step is developed against small self-made programs first,
 with an independent oracle, exactly like the MIPS plugin.

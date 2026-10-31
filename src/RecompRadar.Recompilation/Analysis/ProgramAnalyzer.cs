@@ -120,8 +120,9 @@ public static class ProgramAnalyzer
                     // A register jump whose value is a constant inside the block (for example lui/ori then jr) is a direct jump.
                     if ((r.IsCall || r.GuestRegister != 31) && BlockConstants.AtEnd(block).TryGetValue(r.Register, out var target))
                     {
-                        resolved[block.StartAddress] = target;
-                        AddLeader(target, block.TerminatorAddress);
+                        var destination = (ulong)(uint)target;      // jumps use the low 32 bits of the register
+                        resolved[block.StartAddress] = destination;
+                        AddLeader(destination, block.TerminatorAddress);
                     }
 
                     break;
@@ -308,12 +309,12 @@ public static class ProgramAnalyzer
     private static (SyscallAbi Abi, uint? Number) ClassifySyscall(IrBlock block)
     {
         var constants = BlockConstants.AtEnd(block);
-        if (constants.TryGetValue(3, out var v1) && v1 != 0)
+        if (constants.TryGetValue(3, out var v1) && (uint)v1 != 0)
         {
-            return (SyscallAbi.Ps2Kernel, v1);
+            return (SyscallAbi.Ps2Kernel, (uint)v1);
         }
 
-        return (SyscallAbi.RecompRadarTest, constants.TryGetValue(2, out var v0) ? v0 : null);
+        return (SyscallAbi.RecompRadarTest, constants.TryGetValue(2, out var v0) ? (uint)v0 : null);
     }
 
     private static bool IsNoReturnSite(AnalysisInput input, IrBlock block)

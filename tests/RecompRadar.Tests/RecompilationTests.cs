@@ -509,7 +509,7 @@ public class LoaderAndPluginTests
     [Fact]
     public void Entry_point_preview_flags_words_outside_the_supported_subset()
     {
-        var program = new MipsProgram().Nop().Word(0x70000000).Word(0x7C000000);
+        var program = new MipsProgram().Nop().Word(0x70000000).Word(0x4C000000);
         var bytes = SampleFiles.Mips32Elf(program, false);
         var elf = T.ParseOk(bytes);
         using var stream = new MemoryStream(bytes);

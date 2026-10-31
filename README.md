@@ -15,8 +15,8 @@ program, check that program against a reference interpreter, and start it.
 > into a Windows `.exe`; RecompRadar proves for that run that the result behaves like a reference interpreter, and can
 > start it. The built program is **translated code that runs on the .NET JIT** – it is labelled that way and is not
 > presented as "native". The runtime is only a **first slice of the PlayStation 2** (memory map, serial text output, 18 kernel
-> calls for threads and semaphores): there is no graphics, sound, controller or file layer, and the R5900's 64-bit instructions
-> are missing, so **no commercial game can run**. PlayStation 3 and 4 support is planned, not implemented. RecompRadar does not decrypt,
+> calls for threads and semaphores): there is no graphics, sound, controller or file layer, and the R5900's 128-bit and
+> unaligned instructions are missing, so **no commercial game can run**. PlayStation 3 and 4 support is planned, not implemented. RecompRadar does not decrypt,
 > unpack or circumvent protection and ships no console keys, firmware, BIOS or game data.
 > Full status and limits: [docs/recompilation.md](docs/recompilation.md).
 
@@ -119,7 +119,7 @@ Implemented and covered by automated tests (including real builds); the limits a
   No console keys, firmware or BIOS images are used or shipped.
 * It cannot run commercial games: of the PlayStation 2 runtime only the memory map, serial text output and 18 kernel calls exist
   (see [docs/recompilation.md](docs/recompilation.md#playstation-2-runtime-profile-milestone-b-first-part)); there is no graphics,
-  sound, controller or file layer, and the R5900's 64-bit and 128-bit instructions are not translated.
+  sound, controller or file layer, and the R5900's 128-bit, unaligned and multimedia instructions are not translated.
 * It has no PlayStation 3 or PlayStation 4 backend. Those are planned (see [milestones](#milestones-and-roadmap)); PowerPC 64
   and x86-64 files are analyzed for the portability report only.
 * It does not produce ahead-of-time machine code. Built programs need the .NET 10 runtime and are JIT-compiled at start-up.
@@ -197,9 +197,9 @@ projects target `net10.0` and build on any platform. On Linux or macOS build the
 dotnet test RecompRadar.sln -c Release
 ```
 
-There are two xUnit projects, together **381 tests** (about 35 seconds, most of it real `dotnet build` runs of generated programs):
+There are two xUnit projects, together **400 tests** (about 35 seconds, most of it real `dotnet build` runs of generated programs):
 
-* `tests/RecompRadar.Tests` (335 tests, any platform) covers the analysis core, storage, export, the MIPS plugin, the control-flow
+* `tests/RecompRadar.Tests` (354 tests, any platform) covers the analysis core, storage, export, the MIPS plugin, the control-flow
   analysis, the generator, the compatibility engine, and end-to-end builds: the self-made program is built into a real `.exe`, started,
   and its output compared with an independent oracle and with the reference interpreter. Builds are skipped (and reported as skipped) if no .NET SDK is installed.
 * `tests/RecompRadar.App.Tests` (46 tests, Windows only) runs the real view models against the real pipeline and a temporary SQLite database
@@ -294,8 +294,8 @@ the same IR to produce fully native programs on machines that have the toolchain
 ## Technical limitations
 
 * **ELF only.** Other executable formats are recognised but not parsed.
-* **Disassembly and translation exist for 32-bit MIPS only** (integer, HI/LO, single-precision FPU; no branch-likely, no 64-bit
-  or 128-bit R5900 instructions, no COP0, no vector units). Other architectures are analyzed from headers and symbols only.
+* **Disassembly and translation exist for MIPS only** (32- and 64-bit integer, HI/LO, single-precision FPU; no branch-likely, no
+  unaligned or 128-bit instructions, no MMI, no COP0, no vector units). Other architectures are analyzed from headers and symbols only.
   Imports show that a name is *present*, not that it is *called*.
 * **Control flow is recovered statically.** Register jumps are resolved only when the target is a constant inside the block;
   jump tables and function pointers loaded from memory are reported, not followed.
@@ -318,7 +318,7 @@ the same IR to produce fully native programs on machines that have the toolchain
 | Milestone | Scope | Status |
 | --- | --- | --- |
 | **A – PS2 recompiler (CPU)** | analysis, IR, translator, generator, Windows build, validation, self-test, compatibility engine, UI, CLI | **Implemented** for the MIPS32 subset above |
-| **B – PS2 runtime** | EE kernel services, memory map, graphics, input, files | **Started (partial)**: memory map, serial output, 18 kernel calls; no 64-bit instructions, graphics, input or files yet |
+| **B – PS2 runtime** | EE kernel services, memory map, graphics, input, files | **Started (partial)**: memory map, serial output, 18 kernel calls, 64-bit integer instructions; no 128-bit/unaligned instructions, graphics, input or files yet |
 | **C – PS3 backend** | PowerPC 64, LV2 services | **Planned**, not started |
 | **D – PS4 backend** | x86-64 loader, Orbis system layer | **Planned**, not started |
 | **E – Universal UI** | importer, disassembler, CFG, backend pages, build manager, debugger | **Partial**: Disassembler, Console Backends and Recompiler & Build exist |
@@ -364,5 +364,5 @@ RecompRadar entschlüsselt nichts, umgeht keinen Kopierschutz und enthält keine
 5. Dieselbe Pipeline auf der Kommandozeile:
    `dotnet run --project tools/RecompRadar.Cli -c Release -- recompile samples/ps2_style_selftest.elf --platform ps2 --out build/selftest --run`
 
-**Tests:** `dotnet test RecompRadar.sln -c Release` (381 Tests). Die Oberfläche ist derzeit englisch.
+**Tests:** `dotnet test RecompRadar.sln -c Release` (400 Tests). Die Oberfläche ist derzeit englisch.
 Stand der Meilensteine und genauer Plan für den Rest: [docs/recompilation.md](docs/recompilation.md).

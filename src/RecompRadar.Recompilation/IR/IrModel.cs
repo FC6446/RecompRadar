@@ -4,7 +4,8 @@ namespace RecompRadar.Recompilation.IR;
 
 /// <summary>
 /// Layout of the virtual register file shared by translators, the reference interpreter and the code generators.
-/// Registers 0-31 mirror the 32 general-purpose guest registers; floating-point registers hold raw 32-bit IEEE-754 bits.
+/// Every register is 64 bits wide. Registers 0-31 mirror the 32 general-purpose guest registers (the low 64 bits of the R5900's
+/// 128-bit registers); floating-point registers hold raw 32-bit IEEE-754 bits in the low half with the upper half zero.
 /// </summary>
 public static class Regs
 {
@@ -38,10 +39,16 @@ public static class Regs
     };
 }
 
+/// <summary>
+/// Operations of the three-address IR. Unless stated otherwise they work on the full 64 bits. The "W" operations work on the
+/// low 32 bits of their operands and sign-extend the 32-bit result to 64 bits, which is how MIPS64 keeps 32-bit values in registers.
+/// </summary>
 public enum IrOp
 {
     Const,
     Move,
+
+    // 64-bit arithmetic and logic (shift counts use the low 6 bits)
     Add,
     Sub,
     Mul,
@@ -52,20 +59,40 @@ public enum IrOp
     Shl,
     Shr,
     Sar,
+
+    // 32-bit arithmetic with sign-extended result (shift counts use the low 5 bits)
+    AddW,
+    SubW,
+    MulW,
+    ShlW,
+    ShrW,
+    SarW,
+
+    /// <summary>Dest = the low 32 bits of A, sign-extended.</summary>
+    Sext32,
+
+    /// <summary>Dest = the low 32 bits of A, zero-extended.</summary>
+    Zext32,
+
     SetEq,
     SetNe,
     SetLtSigned,
     SetLtUnsigned,
+
+    // loads sign- or zero-extend to 64 bits; the address is the low 32 bits of A + Offset
     LoadS8,
     LoadU8,
     LoadS16,
     LoadU16,
-    Load32,
+    LoadS32,
+    LoadU32,
+    Load64,
     Store8,
     Store16,
     Store32,
+    Store64,
 
-    // multiply / divide
+    // multiply / divide on the low 32 bits; results are sign-extended (HI/LO)
     MulHiS,
     MulHiU,
     DivS,
@@ -79,7 +106,7 @@ public enum IrOp
     /// <summary>Dest = A when B != 0.</summary>
     MoveIfNonZero,
 
-    // single-precision floating point (operands are raw bits)
+    // single-precision floating point (operands are raw bits in the low half)
     FAdd,
     FSub,
     FMul,
@@ -95,12 +122,15 @@ public enum IrOp
     FLe,
 }
 
-/// <summary>An operand of the 32-bit IR: a virtual register or an immediate.</summary>
-public readonly record struct IrValue(bool IsImmediate, uint Value)
+/// <summary>An operand of the 64-bit IR: a virtual register or an immediate.</summary>
+public readonly record struct IrValue(bool IsImmediate, ulong Value)
 {
     public static IrValue Reg(int index) => new(false, (uint)index);
 
-    public static IrValue Imm(uint value) => new(true, value);
+    public static IrValue Imm(ulong value) => new(true, value);
+
+    /// <summary>An immediate from a 32-bit value, sign-extended the way MIPS64 holds 32-bit constants.</summary>
+    public static IrValue Imm32(uint value) => new(true, unchecked((ulong)(long)(int)value));
 
     public override string ToString() => IsImmediate ? $"0x{Value:X}" : RegisterName((int)Value);
 
@@ -114,11 +144,11 @@ public readonly record struct IrValue(bool IsImmediate, uint Value)
 public sealed record IrInstruction(IrOp Op, int Dest, IrValue A, IrValue B, int Offset, ulong GuestAddress)
 {
     public static bool IsUnary(IrOp op) =>
-        op is IrOp.Const or IrOp.Move or IrOp.FSqrt or IrOp.FAbs or IrOp.FNeg or IrOp.CvtSW or IrOp.CvtWS or IrOp.TruncWS;
+        op is IrOp.Const or IrOp.Move or IrOp.Sext32 or IrOp.Zext32 or IrOp.FSqrt or IrOp.FAbs or IrOp.FNeg or IrOp.CvtSW or IrOp.CvtWS or IrOp.TruncWS;
 
-    public static bool IsLoad(IrOp op) => op is IrOp.LoadS8 or IrOp.LoadU8 or IrOp.LoadS16 or IrOp.LoadU16 or IrOp.Load32;
+    public static bool IsLoad(IrOp op) => op is IrOp.LoadS8 or IrOp.LoadU8 or IrOp.LoadS16 or IrOp.LoadU16 or IrOp.LoadS32 or IrOp.LoadU32 or IrOp.Load64;
 
-    public static bool IsStore(IrOp op) => op is IrOp.Store8 or IrOp.Store16 or IrOp.Store32;
+    public static bool IsStore(IrOp op) => op is IrOp.Store8 or IrOp.Store16 or IrOp.Store32 or IrOp.Store64;
 
     public override string ToString() => Op switch
     {

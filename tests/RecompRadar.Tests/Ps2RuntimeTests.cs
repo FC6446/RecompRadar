@@ -148,7 +148,7 @@ public class Ps2KernelTests
     private sealed class Rig
     {
         public readonly Dictionary<uint, uint> Memory = [];
-        public readonly uint[] R = new uint[128];
+        public readonly ulong[] R = new ulong[128];
         public readonly Ps2Kernel Kernel;
         public uint Pc = 0x400000;
 
@@ -182,7 +182,7 @@ public class Ps2KernelTests
             Memory[at + 0x10] = gp;
             Memory[at + 0x14] = (uint)priority;
             Call(Ps2Kernel.CreateThread, at);
-            return R[2];
+            return (uint)R[2];
         }
 
         public uint Sema(uint max, uint init)
@@ -191,7 +191,7 @@ public class Ps2KernelTests
             Memory[at + 4] = max;
             Memory[at + 8] = init;
             Call(Ps2Kernel.CreateSema, at);
-            return R[2];
+            return (uint)R[2];
         }
     }
 
@@ -283,7 +283,7 @@ public class Ps2KernelTests
         Assert.Equal(0x600Du, rig.R[4]);
         Assert.Equal(0xABCDu, rig.R[28]);
         Assert.Equal(0x92000u, rig.R[29]);
-        Assert.Equal(Ps2Kernel.ThreadExitAddress, rig.R[31]);
+        Assert.Equal(unchecked((ulong)(long)(int)Ps2Kernel.ThreadExitAddress), rig.R[31]);   // kernel addresses are held sign-extended
         Assert.Equal(0u, rig.R[16]);
         rig.Call(Ps2Kernel.GetThreadId);
         Assert.Equal((int)id, rig.Return);
@@ -353,6 +353,7 @@ public class Ps2KernelTests
         Assert.Equal(1, rig.Return);
         rig.Call(Ps2Kernel.SignalSema, s);
         Assert.Equal(-1, rig.Return);                                              // already at the maximum of 2
+        Assert.Equal(ulong.MaxValue, rig.R[2]);                                    // failure is -1 sign-extended to the 64-bit register
         rig.Call(Ps2Kernel.WaitSema, s);
         Assert.Equal(1, rig.Return);                                               // does not block: a token is there
     }

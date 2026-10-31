@@ -136,6 +136,80 @@ public sealed class MipsProgram
     /// <summary>Loads a 32-bit constant with lui + ori (always two instructions).</summary>
     public MipsProgram Li32(int rt, uint value) => Lui(rt, (int)(value >> 16)).Ori(rt, rt, (int)(value & 0xFFFF));
 
+    // ---- 64-bit instructions (MIPS III / R5900) ----
+    public MipsProgram Dadd(int rd, int rs, int rt) => R(0x2C, rd, rs, rt);
+
+    public MipsProgram Daddu(int rd, int rs, int rt) => R(0x2D, rd, rs, rt);
+
+    public MipsProgram Dsub(int rd, int rs, int rt) => R(0x2E, rd, rs, rt);
+
+    public MipsProgram Dsubu(int rd, int rs, int rt) => R(0x2F, rd, rs, rt);
+
+    public MipsProgram Dsll(int rd, int rt, int sa) => R(0x38, rd, 0, rt, sa);
+
+    public MipsProgram Dsrl(int rd, int rt, int sa) => R(0x3A, rd, 0, rt, sa);
+
+    public MipsProgram Dsra(int rd, int rt, int sa) => R(0x3B, rd, 0, rt, sa);
+
+    public MipsProgram Dsll32(int rd, int rt, int sa) => R(0x3C, rd, 0, rt, sa);
+
+    public MipsProgram Dsrl32(int rd, int rt, int sa) => R(0x3E, rd, 0, rt, sa);
+
+    public MipsProgram Dsra32(int rd, int rt, int sa) => R(0x3F, rd, 0, rt, sa);
+
+    public MipsProgram Dsllv(int rd, int rt, int rs) => R(0x14, rd, rs, rt);
+
+    public MipsProgram Dsrlv(int rd, int rt, int rs) => R(0x16, rd, rs, rt);
+
+    public MipsProgram Dsrav(int rd, int rt, int rs) => R(0x17, rd, rs, rt);
+
+    public MipsProgram Daddi(int rt, int rs, int imm) => I(0x18, rt, rs, imm);
+
+    public MipsProgram Daddiu(int rt, int rs, int imm) => I(0x19, rt, rs, imm);
+
+    public MipsProgram Lwu(int rt, int offset, int rs) => I(0x27, rt, rs, offset);
+
+    public MipsProgram Ld(int rt, int offset, int rs) => I(0x37, rt, rs, offset);
+
+    public MipsProgram Sd(int rt, int offset, int rs) => I(0x3F, rt, rs, offset);
+
+    // Recognised by the decoder but not translated: used to test that they are refused by name.
+    public MipsProgram Dmult(int rs, int rt) => R(0x1C, 0, rs, rt);
+
+    public MipsProgram Lq(int rt, int offset, int rs) => I(0x1E, rt, rs, offset);
+
+    public MipsProgram Sq(int rt, int offset, int rs) => I(0x1F, rt, rs, offset);
+
+    public MipsProgram Lwl(int rt, int offset, int rs) => I(0x22, rt, rs, offset);
+
+    public MipsProgram Ldl(int rt, int offset, int rs) => I(0x1A, rt, rs, offset);
+
+    /// <summary>
+    /// Loads a 64-bit constant. Values that are the sign extension of 32 bits take the short form; others are built from two
+    /// halves with <paramref name="scratch"/> as a temporary.
+    /// </summary>
+    public MipsProgram Li64(int rt, ulong value, int scratch = Reg.At)
+    {
+        if ((long)value == (int)(uint)value)
+        {
+            return Li32(rt, (uint)value);
+        }
+
+        Li32(rt, (uint)(value >> 32)).Dsll32(rt, rt, 0);
+        var low = (uint)value;
+        if (low != 0)
+        {
+            Li32(scratch, low).Dsll32(scratch, scratch, 0).Dsrl32(scratch, scratch, 0).Or(rt, rt, scratch);
+        }
+
+        return this;
+    }
+
+    /// <summary>Prints a 64-bit register as two signed 32-bit integers (upper half first) with the RecompRadar test call (needs $v1 = 0 in the PS2 profile).</summary>
+    public MipsProgram Print64(int reg) =>
+        Dsra32(Reg.A0, reg, 0).Addiu(Reg.V0, Reg.Zero, 3).Addiu(Reg.V1, Reg.Zero, 0).Syscall()
+            .Sll(Reg.A0, reg, 0).Addiu(Reg.V0, Reg.Zero, 3).Addiu(Reg.V1, Reg.Zero, 0).Syscall();
+
     // ---- HI/LO, conditional moves, wrapping add/sub, linking branches ----
     public MipsProgram Add(int rd, int rs, int rt) => R(0x20, rd, rs, rt);
 

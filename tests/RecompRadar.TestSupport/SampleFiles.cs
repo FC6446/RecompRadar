@@ -80,6 +80,10 @@ public static class SampleFiles
             "PS2-style MIPS32 program (own code) for the PS2 runtime profile: kernel calls for threads, semaphores and sleep/wakeup, the EE memory map and serial output. Build it with the PlayStation 2 target.",
             Ps2KernelSelfTest.BuildElf()));
 
+        list.Add(new SampleFile("int64_selftest.elf",
+            "MIPS program (own code) for the 64-bit integer unit of the R5900: 64-bit arithmetic and shifts, sign-extending 32-bit instructions, ld/sd, 64-bit compares, and a compiler-style recursive function.",
+            Int64SelfTest.BuildElf()));
+
         var x64 = ElfBuilder.X64Linux();
         x64.OsAbi = 0;
         x64.Interpreter = "/lib64/ld-linux-x86-64.so.2";

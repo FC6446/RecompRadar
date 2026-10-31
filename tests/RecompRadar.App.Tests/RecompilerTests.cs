@@ -190,8 +190,8 @@ public class RecompilerPageTests
             h.Recompiler.ResultFactory = request =>
             {
                 var ok = h.Recompiler.Succeeded(request);
-                var reference = new RecompRadar.Recompilation.ExecutionResult(RecompRadar.Recompilation.ExecutionStatus.Exited, 0, 10, "x", null, new uint[128]);
-                var native = new RunReport("Faulted", 70, 10, "boom", "x", new uint[128]);
+                var reference = new RecompRadar.Recompilation.ExecutionResult(RecompRadar.Recompilation.ExecutionStatus.Exited, 0, 10, "x", null, new ulong[128]);
+                var native = new RunReport("Faulted", 70, 10, "boom", "x", new ulong[128]);
                 return new RecompileResult
                 {
                     Success = false,

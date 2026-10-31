@@ -18,9 +18,9 @@ public sealed class PocRuntime : IRuntimeCompatibilityLayer
     internal static SyscallOutcome HandleTestCall(GuestMachine machine)
     {
         var result = PocSystemCalls.Handle(
-            machine.Registers[2],
-            machine.Registers[4],
-            machine.Registers[Regs.Fpr(12)],
+            (uint)machine.Registers[2],
+            (uint)machine.Registers[4],
+            (uint)machine.Registers[Regs.Fpr(12)],
             address =>
             {
                 Span<byte> one = stackalloc byte[1];
@@ -35,7 +35,7 @@ public sealed class PocRuntime : IRuntimeCompatibilityLayer
             case SyscallAction.Fault:
                 return new SyscallOutcome(false, Fault: result.Message);
             default:
-                machine.Registers[2] = result.ReturnValue;
+                machine.Registers[2] = Sem.Sx(result.ReturnValue);
                 return new SyscallOutcome(false);
         }
     }

@@ -184,11 +184,38 @@ multiply/accumulate loop; 70.5 million guest instructions) on both engines. One 
 Speed-up of the built program over the interpreter: about 6×. This is a statement about this program on this machine,
 not a general performance claim.
 
+## 64-bit registers (milestone B, second part)
+
+The IR registers are 64 bits wide, because the R5900's general-purpose registers are (its 128-bit upper halves are not modelled).
+MIPS64 rules decide what a 32-bit instruction leaves in a 64-bit register, and the translator follows them:
+
+* `addu`, `subu`, `addiu`, `sll`, `srl`, `sra` (and the variable forms), `mul`, `lw`, `lui`, `mfc1` results are the 32-bit
+  value **sign-extended** to 64 bits (IR operations `AddW`, `SubW`, `ShlW`, ... and `Sext32`); `lwu`, `lbu`, `lhu` and `mtc1` zero-extend.
+* The 64-bit instructions use the plain operations: `daddu`, `dsubu`, `daddiu`, `dadd`/`dsub`/`daddi` (without the overflow trap),
+  `dsll`/`dsrl`/`dsra`, their `32` forms and the variable forms (count taken modulo 64), `ld`, `sd`.
+* `slt`/`sltu`/`slti`/`sltiu`, `beq`/`bne`, `bltz`/`bgez`/`blez`/`bgtz` and `movz`/`movn` look at all 64 bits.
+* `mult`/`multu`/`div`/`divu` use the low 32 bits of their operands and write sign-extended 32-bit halves to HI and LO.
+* Addresses are the low 32 bits of base plus offset; `jr`, `jalr` and returns use the low 32 bits of the register, so garbage in the
+  upper half of a return address is harmless. `jal` stores the sign-extended return address.
+* Kernel call results are sign-extended (failure is a register full of ones) and arguments are read from the low 32 bits.
+
+Not translated, and refused **by name with the reason**: `dmult`, `dmultu`, `ddiv`, `ddivu`; `lq`, `sq` (128-bit); `lwl`, `lwr`, `swl`,
+`swr`, `ldl`, `ldr`, `sdl`, `sdr` (unaligned); the multimedia (MMI) instruction set.
+
+**Verification:** `samples/int64_selftest.elf` (self-made) exercises each rule above and ends with a recursive function written the way
+compilers for the PlayStation 2 write them (64-bit stack frame, `daddu` as "move", `ld`/`sd`, the stack pointer restored in a
+delay slot). Its expected output is computed in plain C# from the instruction definitions, independently of the translator. The reference
+interpreter (flat and PS2 profile) and the built program agree with it; two mutations (a `addu` that does not sign-extend, a `bne` that
+compares only the low word) are caught.
+
+**Cost:** the generated code uses 64-bit locals and sign-extensions; the benchmark program runs about 12 % slower than before (99 ms against
+88 ms for 70.5 million guest instructions, still about 5x faster than the interpreter).
+
 ## Known limitations
 
-* The CPU subset: MIPS32 integer, HI/LO, `movz/movn`, `jalr`, `bltzal/bgezal`, single-precision FPU (IEEE-754; the R5900's
-  FPU is *not* fully IEEE), `lwc1/swc1`, `cache/pref/sync` as no-ops. **Not**: branch-likely, `lwl/lwr/swl/swr`, `break`,
-  64-bit R5900 instructions, 128-bit MMI, COP0/TLB, VU0/VU1, `add/sub` overflow traps.
+* The CPU subset: MIPS32 and 64-bit (MIPS III) integer instructions, HI/LO, `movz/movn`, `jalr`, `bltzal/bgezal`, single-precision FPU
+  (IEEE-754; the R5900's FPU is *not* fully IEEE), `lwc1/swc1`, `cache/pref/sync` as no-ops. **Not**: branch-likely, unaligned
+  loads/stores, 64-bit multiply/divide, 128-bit registers and `lq/sq`, MMI, COP0/TLB, VU0/VU1, `break`, `add/sub/dadd/dsub` overflow traps.
 * Control flow: register jumps are resolved only when the target is a constant inside the block; jump tables and function
   pointers loaded from memory are not resolved. Execution that reaches such unrecovered code faults with an explicit message
   (and validation catches the difference against the interpreter, which executes it).
@@ -203,9 +230,9 @@ not a general performance claim.
 
 | Milestone | Scope | Status |
 | --- | --- | --- |
-| **A – PS2 recompiler (CPU)** | analysis, IR, translator, generator, Windows build, validation, self-test, compatibility engine, UI, CLI | **Implemented** for the subset above. Verified by 381 automated tests, including real builds. Output is translated code with runtime (JIT), not AOT machine code |
-| **B – PS2 runtime** | EE kernel services, memory map, GS, pad, files | **Started (partial).** Done: EE memory map, serial text output, 18 kernel calls (threads, semaphores), PS2 profile in interpreter, generator and compatibility engine. Missing: the R5900's 64-bit and 128-bit instructions, graphics, controller, files, timers/interrupts, address-taken function discovery |
-| **C – PS3 backend** | PowerPC 64 decoder/translator, LV2 services | **Planned, not started.** PPC64 ELF files are parsed for the portability report only |
+| **A – PS2 recompiler (CPU)** | analysis, IR, translator, generator, Windows build, validation, self-test, compatibility engine, UI, CLI | **Implemented** for the subset above. Output is translated code with runtime (JIT), not AOT machine code |
+| **B – PS2 runtime** | EE kernel services, memory map, 64-bit CPU, GS, pad, files | **Started (partial).** Done: EE memory map, serial text output, 18 kernel calls (threads, semaphores), PS2 profile in interpreter, generator and compatibility engine, 64-bit registers and the 64-bit integer instructions. Missing: 128-bit and unaligned instructions, MMI, graphics, controller, files, timers/interrupts, address-taken function discovery, `SetupThread`/`SetupHeap` |
+| **C – PS3 backend** | PowerPC 64 decoder/translator, LV2 services | **Planned, not started.** PPC64 ELF files are parsed for the portability report only. The 64-bit IR is now in place for it |
 | **D – PS4 backend** | x86-64 loader and Orbis system layer | **Planned, not started.** x86-64 ELF files are parsed for the report only |
 | **E – Universal UI** | importer, disassembler, CFG, backend pages, build manager, debugger | **Partial.** Disassembler, Console Backends and Recompiler & Build exist; a separate importer, build manager and runtime debugger do not |
 | **F – Extended compatibility** | VU/SPU/GPU, audio, more games | **Planned, not started** |
@@ -219,36 +246,16 @@ milestone A was.
 **B – PS2 runtime (in progress)**
 1. *Done:* EE memory map in the interpreter and the built programs; `syscall` dispatch by `$v1`; threads, semaphores, sleep/wakeup
    with a self-made test program and a hand-derived oracle; serial text output.
-2. 64-bit integer registers in the IR (R5900 GPRs are 128-bit, the low 64 bits are architecturally visible to normal code);
-   extend decoder/translator/semantics and add the 64-bit and `lwl/lwr/swl/swr` instructions, branch-likely, `break`. This is the
-   largest remaining gap: most real PS2 code uses 64-bit loads, stores and moves.
-3. Address-taken function discovery (thread entry points and function pointers that are built with `lui/ori` and stored in memory).
-4. More kernel services: `SetupThread`/`SetupHeap` (the start-up code of every ps2sdk program), alarms and timers, interrupt handlers, `ReferThreadStatus`.
-5. Pad input (XInput) and a file layer that loads data from a host folder (own content only).
-6. A software GS output window for the simplest primitives, validated against reference images computed by the test.
-
-**C – PS3 backend** | PowerPC 64 decoder/translator, LV2 services | **Planned, not started.** PPC64 ELF files are parsed for the portability report only |
-| **D – PS4 backend** | x86-64 loader and Orbis system layer | **Planned, not started.** x86-64 ELF files are parsed for the report only |
-| **E – Universal UI** | importer, disassembler, CFG, backend pages, build manager, debugger | **Partial.** Disassembler, Console Backends and Recompiler & Build exist; a separate importer, build manager and runtime debugger do not |
-| **F – Extended compatibility** | VU/SPU/GPU, audio, more games | **Planned, not started** |
-| Not provided, by design | decrypting SELF/EBOOT or any container, DRM circumvention, using console keys, firmware or BIOS, running commercial games | **Will not be built** |
-
-## Plan for the remaining milestones
-
-The order is chosen so that every step can be verified with self-made programs and an independent oracle, the way
-milestone A was.
-
-**B – PS2 runtime (next)**
-1. 64-bit integer registers in the IR (R5900 GPRs are 128-bit, the low 64 bits are architecturally visible to normal code);
-   extend decoder/translator/semantics and add the 64-bit and `lwl/lwr/swl/swr` instructions, branch-likely, `break`.
-2. EE memory map (32 MB RAM, scratchpad, uncached/cached mirrors) in `GuestMemory`; `SYSCALL` dispatch by `$v1`.
-3. Minimal EE kernel services behind `IRuntimeCompatibilityLayer`: threads, semaphores, timers; each with a self-made test program.
-4. Pad input (XInput) and a file layer that loads data from a host folder (own content only).
-5. A software GS output window for the simplest primitives, validated against reference images computed by the test.
-6. Replace the test ABI in `Homebrew.cs` by the real syscall numbers once step 3 exists; keep the old ABI as a mode.
+2. *Done:* 64-bit integer registers and instructions in the IR, translator, interpreter and generated code.
+3. Unaligned loads/stores (`lwl/lwr/swl/swr`, `ldl/ldr/sdl/sdr`) and branch-likely instructions; then `lq/sq` with a model for the upper
+   64 bits of the registers, and the MMI instructions that compilers emit for plain code.
+4. Address-taken function discovery (thread entry points and function pointers that are built with `lui/ori` and stored in memory).
+5. More kernel services: `SetupThread`/`SetupHeap` (the start-up code of every ps2sdk program), alarms and timers, interrupt handlers, `ReferThreadStatus`.
+6. Pad input (XInput) and a file layer that loads data from a host folder (own content only).
+7. A software GS output window for the simplest primitives, validated against reference images computed by the test.
 
 **C – PS3 backend**
-1. IR with 64-bit registers (shared with B1), PPC64 decoder for the integer core, branch/link/count registers, big-endian memory.
+1. PPC64 decoder for the integer core (the 64-bit IR already exists), branch/link/count registers, big-endian memory.
 2. Translator + generator reuse; differential validation against an interpreter for the same subset.
 3. LV2 syscall subset for self-made homebrew; VMX/AltiVec and the SPU are separate later work.
 

@@ -223,6 +223,38 @@ public sealed class GuestMemory
         return _little ? BinaryPrimitives.ReadUInt32LittleEndian(span) : BinaryPrimitives.ReadUInt32BigEndian(span);
     }
 
+    public ulong Load64(uint address)
+    {
+        if (_ps2 is not null)
+        {
+            return _ps2.Load64(address);
+        }
+
+        var r = ForRead(address, 8, out var o);
+        var span = r.Data.AsSpan(o, 8);
+        return _little ? BinaryPrimitives.ReadUInt64LittleEndian(span) : BinaryPrimitives.ReadUInt64BigEndian(span);
+    }
+
+    public void Store64(uint address, ulong value)
+    {
+        if (_ps2 is not null)
+        {
+            _ps2.Store64(address, value);
+            return;
+        }
+
+        var r = ForWrite(address, 8, out var o);
+        var span = r.Data.AsSpan(o, 8);
+        if (_little)
+        {
+            BinaryPrimitives.WriteUInt64LittleEndian(span, value);
+        }
+        else
+        {
+            BinaryPrimitives.WriteUInt64BigEndian(span, value);
+        }
+    }
+
     public void Store8(uint address, uint value)
     {
         if (_ps2 is not null)
@@ -318,7 +350,7 @@ public sealed class Cpu
         _stdout = stdout;
     }
 
-    public uint[] R { get; } = new uint[RegisterCount];
+    public ulong[] R { get; } = new ulong[RegisterCount];
 
     public GuestMemory Mem { get; private set; } = null!;
 
@@ -364,7 +396,7 @@ public sealed class Cpu
     /// </summary>
     public uint Syscall(uint continuation)
     {
-        if (_kernel is null || R[V1] == 0)
+        if (_kernel is null || (uint)R[V1] == 0)
         {
             TestCall();
             return continuation;
@@ -402,7 +434,7 @@ public sealed class Cpu
 
     private void TestCall()
     {
-        var result = PocSystemCalls.Handle(R[V0], R[A0], R[F12], address => Mem.TryReadByte(address), _output);
+        var result = PocSystemCalls.Handle((uint)R[V0], (uint)R[A0], (uint)R[F12], address => Mem.TryReadByte(address), _output);
         FlushOutput();
 
         switch (result.Action)
@@ -412,7 +444,7 @@ public sealed class Cpu
             case SyscallAction.Fault:
                 throw new GuestFaultException(result.Message ?? "System call failed.");
             default:
-                R[V0] = result.ReturnValue;
+                R[V0] = Sem.Sx(result.ReturnValue);
                 break;
         }
     }
