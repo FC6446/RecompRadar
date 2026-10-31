@@ -67,6 +67,9 @@ public sealed class CompatibilityAssessment
 
     public BuildCategory ExpectedCategory { get; init; } = BuildCategory.Unsupported;
 
+    /// <summary>The system interface a build would use: the PlayStation 2 profile for the PS2 backend, otherwise the RecompRadar test calls.</summary>
+    public RuntimeProfile Profile { get; init; } = RuntimeProfile.RecompRadarTest;
+
     public IEnumerable<CompatibilityNote> Blockers => Notes.Where(n => n.Kind == NoteKind.Blocker);
 }
 
@@ -151,8 +154,29 @@ public static class CompatibilityEngine
             notes.Add(new CompatibilityNote(NoteKind.Warning, "The PlayStation 2 CPU is little-endian, but this file is big-endian; it is unlikely to be a PS2 program. It is translated as generic MIPS32."));
         }
 
-        notes.Add(new CompatibilityNote(NoteKind.Info,
-            "Only the RecompRadar test runtime exists (exit and simple output). No console kernel, graphics, sound, input or file services are available, so real console software cannot run."));
+        if (backend.Id == ConsoleBackendRegistry.Ps2)
+        {
+            notes.Add(new CompatibilityNote(NoteKind.Info,
+                "The PlayStation 2 runtime is a subset: the EE memory map, serial text output and a few kernel calls (threads, semaphores, sleep/wakeup). No graphics, sound, controller, file, interrupt or timer services exist, so real PlayStation 2 software cannot run."));
+            foreach (var segment in elf.Segments.Where(s => s.Type == ElfConstants.PT_LOAD && s.MemorySize > 0))
+            {
+                var fits = segment.VirtualAddress <= uint.MaxValue &&
+                           (ulong)Ps2Memory.ToPhysical((uint)segment.VirtualAddress) + segment.MemorySize <= Ps2Memory.RamSize;
+                if (!fits)
+                {
+                    var text = $"Segment #{segment.Index} (0x{segment.VirtualAddress:X}, {segment.MemorySize:N0} bytes) does not fit into the 32 MiB of EE RAM, so the PlayStation 2 memory map cannot hold this program.";
+                    notes.Add(new CompatibilityNote(NoteKind.Blocker, text));
+                    return Finish(CompatibilityLevel.Unsupported, "Unsupported - the program does not fit the PlayStation 2 memory map.", platformId, platformSource, backend, notes,
+                        false, text, false, text);
+                }
+            }
+        }
+        else
+        {
+            notes.Add(new CompatibilityNote(NoteKind.Info,
+                "Only the RecompRadar test runtime exists (exit and simple output). No console kernel, graphics, sound, input or file services are available, so real console software cannot run."));
+        }
+
         return AssessCode(input.Graph, backend, platformId, platformSource, notes);
     }
 
@@ -200,14 +224,40 @@ public static class CompatibilityEngine
             notes.Add(new CompatibilityNote(NoteKind.Warning, "Some jumps go outside executable memory; those paths fault at run time."));
         }
 
-        var unknownNumbers = graph.SyscallSites.Where(s => s.Number is null).ToList();
-        var unimplemented = graph.SyscallSites.Where(s => s.Number is { } n && !ImplementedSystemCalls.Contains(n)).ToList();
+        var isPs2 = backend.Id == ConsoleBackendRegistry.Ps2;
+        var unknownNumbers = graph.SyscallSites.Where(s => s.Abi == SyscallAbi.RecompRadarTest && s.Number is null).ToList();
+        var unimplemented = graph.SyscallSites.Where(s => s.Abi == SyscallAbi.RecompRadarTest && s.Number is { } n && !ImplementedSystemCalls.Contains(n)).ToList();
         if (unimplemented.Count > 0)
         {
             var numbers = string.Join(", ", unimplemented.Select(s => s.Number!.Value).Distinct().OrderBy(n => n).Take(8));
-            var text = $"{unimplemented.Count} system call site(s) use call number(s) {numbers}, which are not implemented. RecompRadar's test runtime only knows 1 to 5; console kernel services do not exist yet.";
+            var text = $"{unimplemented.Count} system call site(s) use test call number(s) {numbers}, which are not implemented. RecompRadar's test calls are 1 to 5 (number in $v0).";
             blockers.Add(text);
             notes.Add(new CompatibilityNote(NoteKind.Blocker, text));
+        }
+
+        var kernelCalls = graph.SyscallSites.Where(s => s.Abi == SyscallAbi.Ps2Kernel).ToList();
+        if (kernelCalls.Count > 0 && !isPs2)
+        {
+            var names = string.Join(", ", kernelCalls.Select(s => KernelCallName(s.Number!.Value)).Distinct().OrderBy(n => n).Take(6));
+            var text = $"{kernelCalls.Count} system call site(s) use PlayStation 2 kernel calls ({names}), but the {backend.DisplayName} backend has no kernel. Choose PlayStation 2 as the target system.";
+            blockers.Add(text);
+            notes.Add(new CompatibilityNote(NoteKind.Blocker, text));
+        }
+        else if (kernelCalls.Count > 0)
+        {
+            var missing = kernelCalls.Where(s => !Ps2Kernel.IsImplemented(unchecked((int)s.Number!.Value))).ToList();
+            if (missing.Count > 0)
+            {
+                var names = string.Join(", ", missing.Select(s => KernelCallName(s.Number!.Value)).Distinct().OrderBy(n => n).Take(8));
+                var text = $"{missing.Count} system call site(s) use PlayStation 2 kernel calls that are not implemented: {names}. Implemented are: {string.Join(", ", Ps2Kernel.ImplementedCalls().Select(n => Ps2Kernel.NameOf(n)))}.";
+                blockers.Add(text);
+                notes.Add(new CompatibilityNote(NoteKind.Blocker, text));
+            }
+            else
+            {
+                notes.Add(new CompatibilityNote(NoteKind.Info,
+                    $"{kernelCalls.Count} kernel call site(s) use implemented calls ({string.Join(", ", kernelCalls.Select(s => KernelCallName(s.Number!.Value)).Distinct().OrderBy(n => n))}). Their return values follow common convention and were not compared with real hardware."));
+            }
         }
 
         if (unknownNumbers.Count > 0)
@@ -225,7 +275,9 @@ public static class CompatibilityEngine
 
         notes.Add(new CompatibilityNote(NoteKind.Info,
             $"{graph.Functions.Count} function(s), {graph.Blocks.Count} block(s), {graph.InstructionCount} instruction(s) analyzed; every reachable instruction can be translated and every system call is implemented."));
-        return Finish(CompatibilityLevel.Experimental, "Experimental - builds and runs self-made MIPS32 programs that use the RecompRadar test system calls.", platformId, platformSource, backend, notes,
+        return Finish(CompatibilityLevel.Experimental, backend.Id == ConsoleBackendRegistry.Ps2
+                ? "Experimental - builds and runs self-made MIPS32 programs that use the RecompRadar test calls or the implemented PlayStation 2 kernel calls."
+                : "Experimental - builds and runs self-made MIPS32 programs that use the RecompRadar test system calls.", platformId, platformSource, backend, notes,
             true, null, true, null);
     }
 
@@ -252,7 +304,14 @@ public static class CompatibilityEngine
         CanRecompileIncomplete = incomplete && backend?.HasWorkingPipeline == true,
         RunBlockedReason = runBlocked,
         ExpectedCategory = canRecompile ? BuildCategory.TranslatedWithRuntime : BuildCategory.Unsupported,
+        Profile = backend?.Id == ConsoleBackendRegistry.Ps2 ? RuntimeProfile.Ps2Ee : RuntimeProfile.RecompRadarTest,
     };
+
+    private static string KernelCallName(uint number)
+    {
+        var n = unchecked((int)number);
+        return Ps2Kernel.NameOf(n) is { } name ? $"{name} (0x{number:X})" : $"unknown call 0x{number:X}";
+    }
 
     private static (string? Id, string Source) ChoosePlatform(CompatibilityInput input)
     {

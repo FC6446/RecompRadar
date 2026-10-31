@@ -188,7 +188,7 @@ public static class RecompilationPipeline
             project = CSharpGenerator.Generate(
                 graph,
                 LoadImage(plugin, request),
-                new GenerationOptions(projectName, Path.GetFileName(request.SourcePath), sha256, graph.Functions.Count > 0 ? ArchitectureName(request.Elf) : "unknown", ToolInfo.Version, incomplete));
+                new GenerationOptions(projectName, Path.GetFileName(request.SourcePath), sha256, graph.Functions.Count > 0 ? ArchitectureName(request.Elf) : "unknown", ToolInfo.Version, incomplete, compatibility.Profile));
         }
         catch (GenerationException ex)
         {
@@ -246,7 +246,7 @@ public static class RecompilationPipeline
             }
             else
             {
-                var reference = await Task.Run(() => RunReference(plugin, request, request.ValidationInstructionLimit), cancellationToken).ConfigureAwait(false);
+                var reference = await Task.Run(() => RunReference(plugin, request, request.ValidationInstructionLimit, compatibility.Profile), cancellationToken).ConfigureAwait(false);
                 validation = DifferentialValidator.Compare(reference, native.Report);
                 Done(PipelineStage.Validate, validation.Passed,
                     validation.Passed
@@ -288,10 +288,11 @@ public static class RecompilationPipeline
         return plugin.CreateLoader()!.Load(stream, request.Elf);
     }
 
-    private static ExecutionResult RunReference(IRecompilerPlugin plugin, RecompileRequest request, long limit)
+    private static ExecutionResult RunReference(IRecompilerPlugin plugin, RecompileRequest request, long limit, RuntimeProfile profile)
     {
-        var machine = GuestMachine.FromImage(LoadImage(plugin, request));
-        return plugin.CreateBackend()!.Run(machine, plugin.CreateTranslator()!, plugin.CreateRuntime()!, new ExecutionLimits(limit));
+        var machine = GuestMachine.FromImage(LoadImage(plugin, request), profile);
+        var runtime = plugin.CreateRuntime(profile) ?? throw new InvalidOperationException($"The plugin has no runtime for the {profile} profile.");
+        return plugin.CreateBackend()!.Run(machine, plugin.CreateTranslator()!, runtime, new ExecutionLimits(limit));
     }
 
     private static string ArchitectureName(ElfFile elf) =>

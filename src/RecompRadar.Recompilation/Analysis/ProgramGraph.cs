@@ -72,8 +72,18 @@ public sealed record IndirectJump(ulong Address, bool IsCall, int GuestRegister)
 /// <summary>A jump or call through a register whose value is a constant inside its block, so the target is known.</summary>
 public sealed record ResolvedIndirectJump(ulong Address, ulong Target, bool IsCall);
 
+/// <summary>Which calling convention a <c>syscall</c> instruction follows, judged from the registers set in its own block.</summary>
+public enum SyscallAbi
+{
+    /// <summary>RecompRadar's test calls: number in $v0 ($v1 is 0 or not set in the block).</summary>
+    RecompRadarTest,
+
+    /// <summary>PlayStation 2 EE kernel call: a non-zero constant in $v1.</summary>
+    Ps2Kernel,
+}
+
 /// <param name="Number">The call number when it can be determined from the code in the same block; otherwise null.</param>
-public sealed record SyscallSite(ulong Address, uint? Number);
+public sealed record SyscallSite(ulong Address, uint? Number, SyscallAbi Abi = SyscallAbi.RecompRadarTest);
 
 public sealed record FunctionInfo(
     ulong Entry,

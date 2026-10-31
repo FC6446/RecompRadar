@@ -219,6 +219,12 @@ public sealed class MipsProgram
     // ---- calls into RecompRadar's PoC system call ABI (number in $v0, argument in $a0 / $f12) ----
     public MipsProgram PrintInt(int reg) => Move(Reg.A0, reg).Addiu(Reg.V0, Reg.Zero, 3).Syscall();
 
+    /// <summary>A PlayStation 2 style kernel call: the call number goes into $v1, then <c>syscall</c>.</summary>
+    public MipsProgram Ee(int number) => Addiu(Reg.V1, Reg.Zero, number).Syscall();
+
+    /// <summary>The RecompRadar "print integer" test call as the PlayStation 2 profile expects it ($v1 must be 0).</summary>
+    public MipsProgram PrintIntEe(int reg) => Move(Reg.A0, reg).Addiu(Reg.V0, Reg.Zero, 3).Addiu(Reg.V1, Reg.Zero, 0).Syscall();
+
     public MipsProgram PrintString(uint address) => Li32(Reg.A0, address).Addiu(Reg.V0, Reg.Zero, 5).Syscall();
 
     public MipsProgram PrintFloat(int fpr) => MovS(12, fpr).Addiu(Reg.V0, Reg.Zero, 4).Syscall();

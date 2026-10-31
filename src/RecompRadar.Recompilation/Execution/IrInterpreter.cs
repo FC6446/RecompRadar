@@ -25,7 +25,7 @@ public sealed class IrInterpreter : ICodeBackend
         var regs = machine.Registers;
 
         ExecutionResult Finish(ExecutionStatus status, int exitCode, string? message) =>
-            new(status, exitCode, executed, (runtime as IOutputCapture)?.CapturedOutput ?? string.Empty, message, regs.ToArray());
+            new(status, exitCode, executed, machine.Output.ToString(), message, regs.ToArray());
 
         try
         {
@@ -37,6 +37,21 @@ public sealed class IrInterpreter : ICodeBackend
                 }
 
                 var pc = machine.Pc & 0xFFFFFFFF;
+                if (runtime is IPcInterceptor interceptor && interceptor.TryIntercept(machine, pc, out var intercepted))
+                {
+                    if (intercepted.Fault is not null)
+                    {
+                        return Finish(ExecutionStatus.Faulted, 0, intercepted.Fault);
+                    }
+
+                    if (intercepted.Exit)
+                    {
+                        return Finish(ExecutionStatus.Exited, intercepted.ExitCode, null);
+                    }
+
+                    continue;
+                }
+
                 if (!cache.TryGetValue(pc, out var block))
                 {
                     block = translator.TranslateBlock(machine, machine.Endianness, pc);
@@ -252,10 +267,4 @@ public sealed class IrInterpreter : ICodeBackend
         // $zero is hard-wired; translators redirect writes elsewhere, but keep the invariant explicit.
         regs[0] = 0;
     }
-}
-
-/// <summary>Implemented by runtime layers that collect program output, so the interpreter can include it in the result.</summary>
-public interface IOutputCapture
-{
-    string CapturedOutput { get; }
 }

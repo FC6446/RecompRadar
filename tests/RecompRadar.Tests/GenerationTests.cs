@@ -28,7 +28,7 @@ public class GenerationTests
         var project = NativeTestHelper.Generate(SmallElf(), "tiny");
 
         Assert.Equal(
-            new[] { "BuildInfo.cs", "Directory.Build.props", "Directory.Build.targets", "GuestRuntime.cs", "IrSemantics.cs", "Program.cs", "Recompiled.cs", "image.bin", "tiny.csproj" },
+            new[] { "BuildInfo.cs", "Directory.Build.props", "Directory.Build.targets", "GuestRuntime.cs", "IrSemantics.cs", "Program.cs", "Ps2Runtime.cs", "Recompiled.cs", "image.bin", "tiny.csproj" },
             project.Files.Keys.OrderBy(k => k, StringComparer.Ordinal).ToArray());
         foreach (var (name, content) in project.Files.Where(f => f.Key != "image.bin"))
         {
@@ -58,11 +58,13 @@ public class GenerationTests
 
         var container = ImageContainer.Write(image);
 
-        Assert.True(container.AsSpan(0, 8).SequenceEqual("RRIMG1\0\0"u8));
+        Assert.True(container.AsSpan(0, 8).SequenceEqual("RRIMG2\0\0"u8));
         Assert.Equal(0u, BinaryPrimitives.ReadUInt32LittleEndian(container.AsSpan(8)));            // little-endian guest
-        Assert.Equal((uint)image.EntryPoint, BinaryPrimitives.ReadUInt32LittleEndian(container.AsSpan(12)));
-        Assert.Equal((uint)image.Segments.Count, BinaryPrimitives.ReadUInt32LittleEndian(container.AsSpan(16)));
-        var offset = 20;
+        Assert.Equal(0u, BinaryPrimitives.ReadUInt32LittleEndian(container.AsSpan(12)));            // RecompRadar test profile
+        Assert.Equal((uint)image.EntryPoint, BinaryPrimitives.ReadUInt32LittleEndian(container.AsSpan(16)));
+        Assert.Equal((uint)image.Segments.Count, BinaryPrimitives.ReadUInt32LittleEndian(container.AsSpan(20)));
+        Assert.Equal(1u, BinaryPrimitives.ReadUInt32LittleEndian(ImageContainer.Write(image, RecompRadar.Recompilation.RuntimeProfile.Ps2Ee).AsSpan(12)));
+        var offset = 24;
         foreach (var segment in image.Segments)
         {
             Assert.Equal((uint)segment.VirtualAddress, BinaryPrimitives.ReadUInt32LittleEndian(container.AsSpan(offset)));

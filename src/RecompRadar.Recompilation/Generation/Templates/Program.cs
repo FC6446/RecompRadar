@@ -39,8 +39,9 @@ internal static class Program
         using var stdout = new StreamWriter(Console.OpenStandardOutput(), new UTF8Encoding(false), 4096) { AutoFlush = false };
         using var image = Assembly.GetExecutingAssembly().GetManifestResourceStream("image.bin")
                           ?? throw new InvalidOperationException("The program image resource is missing.");
-        var memory = new GuestMemory(image, out var entry);
-        var cpu = new Cpu(memory, stdout) { Limit = limit };
+        var cpu = new Cpu(stdout) { Limit = limit };
+        var memory = new GuestMemory(image, cpu.Serial, out var entry);
+        cpu.Attach(memory);
 
         string status;
         int exitCode;
@@ -78,6 +79,7 @@ internal static class Program
         }
 
         clock.Stop();
+        cpu.FlushOutput();
         stdout.Flush();
         if (message is not null)
         {

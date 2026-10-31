@@ -1,6 +1,7 @@
 using System.Globalization;
-using RecompRadar.BinaryAnalysis.Elf;
 using RecompRadar.Core;
+using RecompRadar.Core.Model;
+using RecompRadar.Portability;
 using RecompRadar.Recompilation.Build;
 using RecompRadar.Recompilation.Pipeline;
 
@@ -55,16 +56,13 @@ if (!File.Exists(input))
     return Usage;
 }
 
-ElfParseResult parsed;
-using (var stream = File.OpenRead(input))
+// The same analysis the app runs: it parses the ELF file and produces the platform hints (never proof) used by the compatibility check.
+var bundle = await new AnalysisPipeline().AnalyzeAsync(input, new AnalysisOptions());
+var analysis = bundle.Analysis;
+if (analysis.Elf is null)
 {
-    parsed = new ElfParser().Parse(stream);
-}
-
-if (parsed.Elf is null)
-{
-    Console.Error.WriteLine("The file could not be parsed as an ELF file:");
-    foreach (var d in parsed.Diagnostics.Where(d => d.Severity >= RecompRadar.Core.Model.Severity.Warning))
+    Console.Error.WriteLine("The file could not be analyzed as an ELF file:");
+    foreach (var d in analysis.Diagnostics.Where(d => d.Severity >= Severity.Warning))
     {
         Console.Error.WriteLine($"  {d.Code}: {d.Message}");
     }
@@ -83,13 +81,14 @@ var progress = new Progress<PipelineProgress>(p =>
 });
 
 var result = await RecompilationPipeline.RunAsync(
-    new RecompileRequest(input, parsed.Elf, output, PlatformOverride: platform, AllowIncomplete: allowIncomplete, Validate: validate),
+    new RecompileRequest(input, analysis.Elf, output, analysis.Platform, platform, allowIncomplete, validate),
     progress);
 await Task.Delay(50); // lets the queued progress lines print before the summary
 
 Console.WriteLine();
 if (result.Compatibility is { } compatibility)
 {
+    Console.WriteLine($"Target system: {compatibility.PlatformId ?? "none assumed"} ({compatibility.PlatformSource}); runtime profile: {compatibility.Profile}");
     Console.WriteLine($"Compatibility: {compatibility.Headline}");
     foreach (var note in compatibility.Notes.Where(n => n.Kind != RecompRadar.Recompilation.Compatibility.NoteKind.Info))
     {

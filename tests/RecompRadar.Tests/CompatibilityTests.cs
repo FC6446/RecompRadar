@@ -246,12 +246,17 @@ public class CompatibilityTests
             Assert.DoesNotContain(backend.Modules, m => m.Name.Contains("code generator", StringComparison.OrdinalIgnoreCase) && m.State == ModuleState.Implemented);
         }
 
-        // The PS2 backend has no console runtime; every such module must say so.
+        // The PS2 backend has no graphics, sound, input or vector units yet; every such module must say so.
         var ps2 = ConsoleBackendRegistry.Find("ps2")!;
-        foreach (var name in new[] { "Graphics Synthesizer", "Vector units", "IOP", "Sound", "Controller input", "EE kernel" })
+        foreach (var name in new[] { "Graphics Synthesizer", "Vector units", "IOP", "Sound", "Controller input" })
         {
             Assert.Equal(ModuleState.Planned, ps2.Modules.Single(m => m.Name.Contains(name, StringComparison.Ordinal)).State);
         }
+
+        // What exists is partial or small, and says so.
+        Assert.Equal(ModuleState.Partial, ps2.Modules.Single(m => m.Name.StartsWith("EE kernel", StringComparison.Ordinal)).State);
+        Assert.Equal(ModuleState.Partial, ps2.Modules.Single(m => m.Name == "EE memory map").State);
+        Assert.Equal(ModuleState.Implemented, ps2.Modules.Single(m => m.Name == "Serial text output").State);
     }
 
     [Fact]

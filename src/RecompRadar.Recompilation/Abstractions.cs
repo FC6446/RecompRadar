@@ -109,6 +109,26 @@ public interface ICodeTranslator
 
 public sealed record SyscallOutcome(bool Exit, int ExitCode = 0, string? Fault = null);
 
+/// <summary>Which system interface a program runs against. It decides the memory map and the meaning of the <c>syscall</c> instruction.</summary>
+public enum RuntimeProfile
+{
+    /// <summary>Flat memory and RecompRadar's own test calls (number in $v0).</summary>
+    RecompRadarTest,
+
+    /// <summary>
+    /// PlayStation 2 Emotion Engine: EE memory map, serial output and a kernel subset (call number in $v1). A call with
+    /// $v1 == 0 is still a RecompRadar test call, because the real kernel has no call 0.
+    /// </summary>
+    Ps2Ee,
+}
+
+/// <summary>Optional: a runtime that handles jumps to addresses that hold no code (for example a thread function returning to the kernel).</summary>
+public interface IPcInterceptor
+{
+    /// <summary>Returns true when <paramref name="pc"/> was handled; the machine's pc and registers then describe where execution continues.</summary>
+    bool TryIntercept(Execution.GuestMachine machine, ulong pc, out SyscallOutcome outcome);
+}
+
 /// <summary>Planned component 5: provides operating-system and hardware behavior the guest program expects.</summary>
 public interface IRuntimeCompatibilityLayer
 {
@@ -182,6 +202,9 @@ public interface IRecompilerPlugin
     IRuntimeCompatibilityLayer? CreateRuntime();
 
     ICodeBackend? CreateBackend();
+
+    /// <summary>The runtime for a profile, or null when the plugin has none for it.</summary>
+    IRuntimeCompatibilityLayer? CreateRuntime(RuntimeProfile profile) => profile == RuntimeProfile.RecompRadarTest ? CreateRuntime() : null;
 
     /// <summary>System call numbers that end the program, so code behind them is not treated as their continuation.</summary>
     IReadOnlySet<uint> NoReturnSystemCalls => EmptyNumbers.Instance;

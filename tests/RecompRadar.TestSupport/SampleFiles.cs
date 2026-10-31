@@ -76,6 +76,10 @@ public static class SampleFiles
             "PS2-style MIPS32 self-test (own code): recursion, sorting, strings, HI/LO and single-precision floats. RecompRadar can turn it into a Windows program.",
             Ps2StyleSelfTest.BuildElf()));
 
+        list.Add(new SampleFile("ps2_kernel_selftest.elf",
+            "PS2-style MIPS32 program (own code) for the PS2 runtime profile: kernel calls for threads, semaphores and sleep/wakeup, the EE memory map and serial output. Build it with the PlayStation 2 target.",
+            Ps2KernelSelfTest.BuildElf()));
+
         var x64 = ElfBuilder.X64Linux();
         x64.OsAbi = 0;
         x64.Interpreter = "/lib64/ld-linux-x86-64.so.2";

@@ -1,6 +1,8 @@
 using System.Buffers.Binary;
+using System.Text;
 using RecompRadar.Core.Model;
 using RecompRadar.Recompilation.IR;
+using RecompRadar.Semantics;
 
 namespace RecompRadar.Recompilation.Execution;
 
@@ -13,8 +15,9 @@ public sealed class GuestFaultException : Exception
 }
 
 /// <summary>
-/// State of the emulated guest used by the reference interpreter: 64 virtual registers (0-31 mirror the guest registers),
-/// a program counter and bounds-checked memory. Every invalid access raises <see cref="GuestFaultException"/>.
+/// State of the emulated guest used by the reference interpreter: the shared virtual register file, a program counter and
+/// bounds-checked memory. Every invalid access raises <see cref="GuestFaultException"/>. With <see cref="RuntimeProfile.Ps2Ee"/>
+/// the memory is the PlayStation 2 EE address space (see <see cref="Ps2Memory"/>) instead of the flat segment list.
 /// </summary>
 public sealed class GuestMachine : IMemoryReader
 {
@@ -32,9 +35,14 @@ public sealed class GuestMachine : IMemoryReader
 
     private readonly List<Region> _regions = [];
 
-    public GuestMachine(Endianness endianness)
+    public GuestMachine(Endianness endianness, RuntimeProfile profile = RuntimeProfile.RecompRadarTest)
     {
         Endianness = endianness;
+        Profile = profile;
+        if (profile == RuntimeProfile.Ps2Ee)
+        {
+            Ps2 = new Ps2Memory(endianness == Endianness.Little, message => new GuestFaultException(message), AppendSerial);
+        }
     }
 
     public uint[] Registers { get; } = new uint[RegisterCount];
@@ -43,12 +51,46 @@ public sealed class GuestMachine : IMemoryReader
 
     public Endianness Endianness { get; }
 
+    public RuntimeProfile Profile { get; }
+
+    /// <summary>The EE address space, or null for the flat profile.</summary>
+    public Ps2Memory? Ps2 { get; }
+
+    /// <summary>Everything the program printed (test calls and serial output), in order.</summary>
+    public StringBuilder Output { get; } = new();
+
     /// <summary>Set when a store hit an executable region, so cached translations must be discarded.</summary>
     public bool CodeWritten { get; set; }
 
-    public static GuestMachine FromImage(LoadedImage image)
+    public void AppendOutput(string text)
     {
-        var machine = new GuestMachine(image.Endianness) { Pc = image.EntryPoint };
+        if (Output.Length + text.Length <= PocSystemCalls.MaxOutputChars)
+        {
+            Output.Append(text);
+        }
+    }
+
+    private void AppendSerial(byte value) => AppendOutput(((char)value).ToString());
+
+    public static GuestMachine FromImage(LoadedImage image, RuntimeProfile profile = RuntimeProfile.RecompRadarTest)
+    {
+        var machine = new GuestMachine(image.Endianness, profile) { Pc = image.EntryPoint };
+        if (profile == RuntimeProfile.Ps2Ee)
+        {
+            foreach (var segment in image.Segments)
+            {
+                if (segment.VirtualAddress > uint.MaxValue)
+                {
+                    throw new InvalidOperationException($"The segment at 0x{segment.VirtualAddress:X} is outside the 32-bit EE address space.");
+                }
+
+                machine.Ps2!.LoadSegment((uint)segment.VirtualAddress, segment.Data, segment.Executable);
+            }
+
+            machine.Registers[29] = Ps2Memory.InitialStackPointer;
+            return machine;
+        }
+
         foreach (var segment in image.Segments)
         {
             machine._regions.Add(new Region
@@ -75,6 +117,22 @@ public sealed class GuestMachine : IMemoryReader
 
     public bool TryRead(ulong address, Span<byte> buffer)
     {
+        if (Ps2 is not null)
+        {
+            for (var i = 0; i < buffer.Length; i++)
+            {
+                var b = address + (ulong)i > uint.MaxValue ? -1 : Ps2.TryReadByte((uint)(address + (ulong)i));
+                if (b < 0)
+                {
+                    return false;
+                }
+
+                buffer[i] = (byte)b;
+            }
+
+            return true;
+        }
+
         if (!TryLocate(address, buffer.Length, out var region, out var offset))
         {
             return false;
@@ -108,6 +166,11 @@ public sealed class GuestMachine : IMemoryReader
     public uint Load(ulong address, int size, bool signExtend)
     {
         address &= 0xFFFFFFFF;
+        if (Ps2 is not null)
+        {
+            return Ps2.Load((uint)address, size, signExtend);
+        }
+
         if (address % (ulong)size != 0)
         {
             throw new GuestFaultException($"Unaligned {size}-byte read at 0x{address:X8}.");
@@ -138,6 +201,12 @@ public sealed class GuestMachine : IMemoryReader
     public void Store(ulong address, int size, uint value)
     {
         address &= 0xFFFFFFFF;
+        if (Ps2 is not null)
+        {
+            Ps2.Store((uint)address, size, value);
+            return;
+        }
+
         if (address % (ulong)size != 0)
         {
             throw new GuestFaultException($"Unaligned {size}-byte write at 0x{address:X8}.");

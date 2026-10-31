@@ -2,6 +2,7 @@
 
   <ItemGroup>
     <ProjectReference Include="..\..\src\RecompRadar.BinaryAnalysis\RecompRadar.BinaryAnalysis.csproj" />
+    <ProjectReference Include="..\..\src\RecompRadar.Portability\RecompRadar.Portability.csproj" />
     <ProjectReference Include="..\..\src\RecompRadar.Recompilation\RecompRadar.Recompilation.csproj" />
   </ItemGroup>
 

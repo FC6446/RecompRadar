@@ -39,5 +39,11 @@ public sealed class MipsPocPlugin : IRecompilerPlugin
 
     public IRuntimeCompatibilityLayer? CreateRuntime() => new PocRuntime();
 
+    public IRuntimeCompatibilityLayer? CreateRuntime(RuntimeProfile profile) => profile switch
+    {
+        RuntimeProfile.Ps2Ee => new Ps2Runtime(),
+        _ => new PocRuntime(),
+    };
+
     public ICodeBackend? CreateBackend() => new IrInterpreter();
 }

@@ -12,13 +12,13 @@ internal static class RefRun
     public static ExecutionResult Run(MipsProgram program, bool bigEndian = false, long maxInstructions = 5_000_000) =>
         RunElf(SampleFiles.Mips32Elf(program, bigEndian), maxInstructions);
 
-    public static ExecutionResult RunElf(byte[] elfBytes, long maxInstructions = 5_000_000)
+    public static ExecutionResult RunElf(byte[] elfBytes, long maxInstructions = 5_000_000, RuntimeProfile profile = RuntimeProfile.RecompRadarTest)
     {
         var elf = T.ParseOk(elfBytes);
         var plugin = new MipsPocPlugin();
         using var stream = new MemoryStream(elfBytes);
-        var machine = GuestMachine.FromImage(plugin.CreateLoader()!.Load(stream, elf));
-        return plugin.CreateBackend()!.Run(machine, plugin.CreateTranslator()!, plugin.CreateRuntime()!, new ExecutionLimits(maxInstructions));
+        var machine = GuestMachine.FromImage(plugin.CreateLoader()!.Load(stream, elf), profile);
+        return plugin.CreateBackend()!.Run(machine, plugin.CreateTranslator()!, plugin.CreateRuntime(profile)!, new ExecutionLimits(maxInstructions));
     }
 
     public static uint Bits(float value) => BitConverter.SingleToUInt32Bits(value);

@@ -6,8 +6,10 @@ listed as such in [Status by milestone](#status-by-milestone).
 
 > **Scope in one sentence:** RecompRadar can turn a *self-made* 32-bit MIPS program (the CPU used by the PlayStation 2)
 > into a real Windows program, prove for a given run that the result behaves like a reference interpreter, and start it.
-> It cannot run commercial console software, because none of the console's operating system, graphics, sound or input
-> services exist yet, and it never will decrypt or bypass protection.
+> It cannot run commercial console software, because most of the console's operating system and all graphics, sound,
+> input and file services do not exist yet, and it never will decrypt or bypass protection. Since milestone B started, such
+> programs can also use a small slice of the PlayStation 2 runtime: its memory map, serial text output and 18 kernel calls
+> for threads and semaphores ([details](#playstation-2-runtime-profile-milestone-b-first-part)).
 
 ## What a build is, honestly
 
@@ -36,7 +38,7 @@ The categories it distinguishes (`BuildCategory`) are never mixed up:
 | Read file | SHA-256, pick a plugin that can load and translate the file, map the ELF segments | no plugin supports the architecture; file unreadable |
 | Analyze code | Recursive-descent discovery of blocks, functions, call graph, cross references; block-local constant propagation resolves `lui/ori` + `jr/jalr`; system call numbers are recovered | never (problems are findings) |
 | Check compatibility | `CompatibilityEngine` combines header, analysis and the backend's module list | level *Unsupported* (unless an incomplete build was explicitly allowed) |
-| Generate C# | One method per basic block + dispatcher, the memory image (`image.bin`, format `RRIMG1`), runtime templates, `IrSemantics.cs` copied verbatim | unsupported instructions without *allow incomplete* |
+| Generate C# | One method per basic block + dispatcher, the memory image (`image.bin`, format `RRIMG2`), runtime templates, `IrSemantics.cs` copied verbatim | unsupported instructions without *allow incomplete* |
 | Build with .NET | `dotnet build -c Release` of the generated project; no packages are downloaded; `Deterministic` is on | SDK missing, compile error, timeout |
 | Validate | Run the built program and the reference interpreter on the same input; compare end state, exit code, instruction count, output and architectural registers | any difference → the program is *not trusted* and Play is blocked |
 | Write report | `build-report.json` with decisions, hashes, stage timings, findings and the list of limitations | – |
@@ -51,10 +53,11 @@ by the explicit *Play* action (or `--run`).
   <name>.csproj            net10.0, Optimize, Deterministic, TieredCompilation off
   Recompiled.cs            generated: dispatcher + one method per basic block (registers become locals)
   BuildInfo.cs             generated: tool version, source name and SHA-256
-  image.bin                RRIMG1 container: entry point, endianness, segments with permissions
+  image.bin                RRIMG2 container: entry point, endianness, segments with permissions
   GuestRuntime.cs          template: guest memory (alignment, mapping, permissions), CPU state, test system calls
   Program.cs               template: arguments, exit codes, run report
   IrSemantics.cs           the *same file* the reference interpreter is compiled from (division edge cases, FPU, system calls)
+  Ps2Runtime.cs            the *same file* the reference interpreter uses for the PS2 memory map and kernel calls
   out/<name>.exe           the built program
   build-report.json
 ```
@@ -90,7 +93,7 @@ Validation covers *one run*. It does not prove equivalence for other inputs or f
 
 * **No input reaches `Supported` or `PartiallySupported` today** (a test asserts this).
 * `Experimental`: the file is 32-bit MIPS, every reachable instruction can be translated and every system call is one of
-  the five RecompRadar test calls. Builds and runs, but real PS2 software is not expected to work.
+  the five RecompRadar test calls (or, with the PlayStation 2 target, an implemented PS2 kernel call). Builds and runs, but real PS2 software is not expected to work.
 * `Unsupported`: with the reasons listed – unsupported instruction (named, with address), unimplemented system call (with
   number), no backend for the CPU, the backend exists only as a plan (PS3, PS4), or the chosen platform contradicts the CPU.
 * **A manual platform choice never raises the level.** It only selects which backend is checked; choosing "PlayStation 2"
@@ -129,6 +132,43 @@ It exercises recursion with stack frames (`fib`, `fact`, deep `sumrec`), arrays 
 HI/LO multiply and divide, conditional moves and single-precision floating point, and prints
 its results through the RecompRadar test system calls. It executes about 453 650 guest instructions.
 
+## PlayStation 2 runtime profile (milestone B, first part)
+
+Choosing (or auto-detecting) **PlayStation 2** as the target system switches the build from the flat RecompRadar test profile to
+the `Ps2Ee` profile. Both the reference interpreter and the built program use the *same source file*
+(`Shared/Ps2Runtime.cs`), so they cannot disagree about the memory map or the kernel.
+
+**What is modelled** (numbers and addresses come from the public ps2sdk headers `syscallnr.h`, `kernel.h`, `sio.h`):
+
+| Part | Behavior |
+| --- | --- |
+| Memory map | 32 MiB RAM at 0x00000000 and through the KSEG0/KSEG1 mirrors (0x80000000, 0xA0000000); 16 KiB scratchpad at 0x70000000; the serial port registers. Anything else faults with the address. Executable segments are write-protected. The main thread starts with `$sp` = 0x01FFFFF0 |
+| Serial output | A byte stored to `SIO_TXFIFO` (0x1000F180, also via 0xB000F180) is printed; `SIO_ISR` (0x1000F130) reads 0 = ready |
+| Call convention | Call number in `$v1`, arguments in `$a0..`, result in `$v0`. `$v1 == 0` stays a RecompRadar test call (exit, byte, integer, float, string output), because the real kernel has no call 0 |
+| Implemented calls (18) | `KExit`, `CreateThread`, `DeleteThread`, `StartThread`, `ExitThread`, `ExitDeleteThread`, `TerminateThread`, `ChangeThreadPriority`, `RotateThreadReadyQueue`, `GetThreadId`, `SleepThread`, `WakeupThread`, `CreateSema`, `DeleteSema`, `SignalSema`, `WaitSema`, `PollSema`, `FlushCache` |
+| Known but not implemented | `ResetEE`, `SetupThread`, `SetupHeap`, `EndOfHeap`, `GsPutIMR`, `iSignalSema`, `iWakeupThread`; the build is refused and the reason names the call and its number |
+| Structures | `ee_thread_t` (entry at +4, stack +8, stack size +0xC, gp +0x10, initial priority +0x14) and `ee_sema_t` (max count +4, initial count +8), as in `kernel.h` |
+
+**Scheduling rules** (the headers do not document them; these are common conventions and an implementation choice):
+a lower priority number runs first (0-127); equal priorities run in the order they became ready; a thread is preempted only
+by a kernel call that makes a higher-priority thread ready, and then waits at the *front* of its priority group; there is no
+time slicing and no interrupt. The main thread has id 1 and priority 1; new ids are the lowest free one from 2. When a thread
+function returns it behaves like `ExitThread`. When every remaining thread waits, the run faults with "deadlock"; when no thread is
+left, the program ends with exit code 0 (a real console would idle).
+
+**Return values** are ids on success and -1 on failure (`ChangeThreadPriority` and `FlushCache` return 0). The headers do not
+document them and they were **not compared with real hardware**. The id numbers in the self-test (main = 1, first semaphore = 1, first
+workers = 2 and 3, an id is reused after `DeleteThread`) are RecompRadar's choices.
+
+**Verification:** `samples/ps2_kernel_selftest.elf` (self-made) creates a semaphore and three threads, makes two equal-priority
+workers alternate through `RotateThreadReadyQueue`, wakes the main thread by `SignalSema`, preempts, sleeps and wakes a thread twice,
+and checks the KSEG0/KSEG1 mirrors and the scratchpad. Its expected output was derived by hand from the scheduling rules, and
+the reference interpreter, the built program and that derivation agree. Unit tests cover each call, the failure paths, the memory map and
+byte order; a mutation of the scheduler (resuming a preempted thread behind its peers) is caught by two tests.
+
+**Not covered:** the program starts threads through function addresses stored in memory, so a stripped binary needs its entry points
+as symbols (address-taken functions are not discovered yet).
+
 ## Measured speed
 
 `BenchmarkTests` (category `Benchmark`) runs a compute-bound program (recursive Fibonacci(30) and a 3 000 000-iteration
@@ -153,18 +193,41 @@ not a general performance claim.
   pointers loaded from memory are not resolved. Execution that reaches such unrecovered code faults with an explicit message
   (and validation catches the difference against the interpreter, which executes it).
 * Self-modifying code and writes into executable memory are not supported and fault.
-* Only the five RecompRadar test system calls exist (`$v0` = 1 exit, 2 byte, 3 integer, 4 float from `$f12`, 5 string).
-  They are RecompRadar's own ABI and not any console's.
-* No graphics, audio, input, files, threads, timers or interrupts.
+* Flat profile: only the five RecompRadar test system calls exist (`$v0` = 1 exit, 2 byte, 3 integer, 4 float from `$f12`, 5 string).
+  They are RecompRadar's own ABI and not any console's. PlayStation 2 profile: the 18 kernel calls above plus those test calls.
+* No graphics, audio, controller input, file access, timers, alarms or interrupts; no DMA, IOP or vector units.
+* Threads only switch at kernel calls (no time slicing), and the scheduling details are not verified against hardware.
 * The generated dispatcher is one `switch`; programs with hundreds of thousands of blocks will be slow to build.
 
 ## Status by milestone
 
 | Milestone | Scope | Status |
 | --- | --- | --- |
-| **A – PS2 recompiler (CPU)** | analysis, IR, translator, generator, Windows build, validation, self-test, compatibility engine, UI, CLI | **Implemented** for the subset above. Verified by 331 automated tests, including real builds. Output is translated code with runtime (JIT), not AOT machine code |
-| **B – PS2 runtime** | EE kernel services, memory map, GS, pad, files | **Planned, not started.** Only the RecompRadar test runtime exists |
+| **A – PS2 recompiler (CPU)** | analysis, IR, translator, generator, Windows build, validation, self-test, compatibility engine, UI, CLI | **Implemented** for the subset above. Verified by 381 automated tests, including real builds. Output is translated code with runtime (JIT), not AOT machine code |
+| **B – PS2 runtime** | EE kernel services, memory map, GS, pad, files | **Started (partial).** Done: EE memory map, serial text output, 18 kernel calls (threads, semaphores), PS2 profile in interpreter, generator and compatibility engine. Missing: the R5900's 64-bit and 128-bit instructions, graphics, controller, files, timers/interrupts, address-taken function discovery |
 | **C – PS3 backend** | PowerPC 64 decoder/translator, LV2 services | **Planned, not started.** PPC64 ELF files are parsed for the portability report only |
+| **D – PS4 backend** | x86-64 loader and Orbis system layer | **Planned, not started.** x86-64 ELF files are parsed for the report only |
+| **E – Universal UI** | importer, disassembler, CFG, backend pages, build manager, debugger | **Partial.** Disassembler, Console Backends and Recompiler & Build exist; a separate importer, build manager and runtime debugger do not |
+| **F – Extended compatibility** | VU/SPU/GPU, audio, more games | **Planned, not started** |
+| Not provided, by design | decrypting SELF/EBOOT or any container, DRM circumvention, using console keys, firmware or BIOS, running commercial games | **Will not be built** |
+
+## Plan for the remaining milestones
+
+The order is chosen so that every step can be verified with self-made programs and an independent oracle, the way
+milestone A was.
+
+**B – PS2 runtime (in progress)**
+1. *Done:* EE memory map in the interpreter and the built programs; `syscall` dispatch by `$v1`; threads, semaphores, sleep/wakeup
+   with a self-made test program and a hand-derived oracle; serial text output.
+2. 64-bit integer registers in the IR (R5900 GPRs are 128-bit, the low 64 bits are architecturally visible to normal code);
+   extend decoder/translator/semantics and add the 64-bit and `lwl/lwr/swl/swr` instructions, branch-likely, `break`. This is the
+   largest remaining gap: most real PS2 code uses 64-bit loads, stores and moves.
+3. Address-taken function discovery (thread entry points and function pointers that are built with `lui/ori` and stored in memory).
+4. More kernel services: `SetupThread`/`SetupHeap` (the start-up code of every ps2sdk program), alarms and timers, interrupt handlers, `ReferThreadStatus`.
+5. Pad input (XInput) and a file layer that loads data from a host folder (own content only).
+6. A software GS output window for the simplest primitives, validated against reference images computed by the test.
+
+**C – PS3 backend** | PowerPC 64 decoder/translator, LV2 services | **Planned, not started.** PPC64 ELF files are parsed for the portability report only |
 | **D – PS4 backend** | x86-64 loader and Orbis system layer | **Planned, not started.** x86-64 ELF files are parsed for the report only |
 | **E – Universal UI** | importer, disassembler, CFG, backend pages, build manager, debugger | **Partial.** Disassembler, Console Backends and Recompiler & Build exist; a separate importer, build manager and runtime debugger do not |
 | **F – Extended compatibility** | VU/SPU/GPU, audio, more games | **Planned, not started** |

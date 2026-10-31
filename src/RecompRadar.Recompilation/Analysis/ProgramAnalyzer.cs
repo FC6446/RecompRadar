@@ -13,8 +13,10 @@ public sealed record AnalysisInput(
     IReadOnlyDictionary<ulong, string> FunctionSymbols,
     IReadOnlySet<uint>? NoReturnSystemCalls = null)
 {
-    /// <summary>True when the call number is known to end the program, so the code behind the syscall is not its continuation.</summary>
-    public bool IsNoReturn(uint? number) => number is { } n && NoReturnSystemCalls?.Contains(n) == true;
+    /// <summary>True when the call is known to end the program or the calling thread, so the code behind the syscall is not its continuation.</summary>
+    public bool IsNoReturn(SyscallAbi abi, uint? number) => number is { } n && (abi == SyscallAbi.Ps2Kernel
+        ? RecompRadar.Semantics.Ps2Kernel.NeverReturns(unchecked((int)n))
+        : NoReturnSystemCalls?.Contains(n) == true);
 }
 
 public sealed record ProgramAnalyzerOptions(int MaxBlocks = 100_000, int MaxInstructions = 2_000_000);
@@ -123,7 +125,7 @@ public static class ProgramAnalyzer
                     }
 
                     break;
-                case IrSyscall s when !input.IsNoReturn(SyscallNumber(block)):
+                case IrSyscall s when !IsNoReturnSite(input, block):
                     AddLeader(s.Continuation, block.TerminatorAddress);
                     break;
             }
@@ -227,9 +229,9 @@ public static class ProgramAnalyzer
                     break;
                 case IrSyscall s:
                 {
-                    var number = SyscallNumber(ir);
-                    syscalls.Add(new SyscallSite(at, number));
-                    if (input.IsNoReturn(number))
+                    var (abi, number) = ClassifySyscall(ir);
+                    syscalls.Add(new SyscallSite(at, number, abi));
+                    if (input.IsNoReturn(abi, number))
                     {
                         exit = BlockExit.ProgramExit;
                     }
@@ -299,8 +301,26 @@ public static class ProgramAnalyzer
 
     private static string RegisterName(int guest) => guest is >= 0 and < 32 ? MipsRegisters.Name(guest) : "(unknown)";
 
-    /// <summary>The call number in $v0 when it is a constant inside the block.</summary>
-    private static uint? SyscallNumber(IrBlock block) => BlockConstants.AtEnd(block).TryGetValue(2, out var number) ? number : null;
+    /// <summary>
+    /// Decides which convention a syscall follows and which call number it carries, from constants set in the same block:
+    /// a non-zero constant in $v1 is a PlayStation 2 kernel call; otherwise the number is $v0 (RecompRadar test call).
+    /// </summary>
+    private static (SyscallAbi Abi, uint? Number) ClassifySyscall(IrBlock block)
+    {
+        var constants = BlockConstants.AtEnd(block);
+        if (constants.TryGetValue(3, out var v1) && v1 != 0)
+        {
+            return (SyscallAbi.Ps2Kernel, v1);
+        }
+
+        return (SyscallAbi.RecompRadarTest, constants.TryGetValue(2, out var v0) ? v0 : null);
+    }
+
+    private static bool IsNoReturnSite(AnalysisInput input, IrBlock block)
+    {
+        var (abi, number) = ClassifySyscall(block);
+        return input.IsNoReturn(abi, number);
+    }
 
     private static List<FunctionInfo> DiscoverFunctions(AnalysisInput input, Dictionary<ulong, CfgBlock> blocks, out List<CallGraphEdge> callGraph)
     {
