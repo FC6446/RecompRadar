@@ -8,7 +8,10 @@ public sealed record GenerationOptions(
     string GeneratorVersion,
 
     /// <summary>When false, generation fails if the analysis found unsupported instructions or unresolved errors.</summary>
-    bool AllowIncomplete = false);
+    bool AllowIncomplete = false,
+
+    /// <summary>The system interface the program runs against (memory map and meaning of <c>syscall</c>).</summary>
+    RuntimeProfile Profile = RuntimeProfile.RecompRadarTest);
 
 public sealed record GenerationStats(
     int Functions,

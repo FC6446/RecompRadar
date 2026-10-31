@@ -343,6 +343,23 @@ public class DisassemblerAndConsolePageTests
     }
 
     [Fact]
+    public void Kernel_calls_are_shown_by_name_and_the_ps2_hint_selects_the_ps2_profile()
+    {
+        Sta.Run(async () =>
+        {
+            using var h = new Harness();
+            await LoadAsync(h, "ps2_kernel_selftest.elf");
+
+            Assert.Contains(h.Disassembler.Syscalls, s => s.Meaning == "PlayStation 2 kernel call CreateSema (implemented as a subset)" && s.Number == "0x40");
+            Assert.Contains(h.Disassembler.Syscalls, s => s.Meaning == "RecompRadar test call: write integer");
+            Assert.Equal("ps2", h.RecompilerPage.Compatibility!.PlatformId);
+            Assert.Equal(RecompRadar.Recompilation.RuntimeProfile.Ps2Ee, h.RecompilerPage.Compatibility.Profile);
+            Assert.Equal(RecompRadar.Recompilation.Compatibility.CompatibilityLevel.Experimental, h.RecompilerPage.Level);
+            Assert.Contains(h.RecompilerPage.Notes, n => n.Text.Contains("kernel call site(s) use implemented calls", StringComparison.Ordinal));
+        });
+    }
+
+    [Fact]
     public void Selecting_another_function_shows_its_own_blocks()
     {
         Sta.Run(async () =>

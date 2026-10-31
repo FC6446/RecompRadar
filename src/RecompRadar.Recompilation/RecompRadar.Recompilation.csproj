@@ -16,6 +16,7 @@
     <EmbeddedResource Include="Generation\Templates\*.cs" LogicalName="Templates/%(Filename)%(Extension)" />
     <!-- The shared semantics are compiled here and also copied verbatim into generated programs. -->
     <EmbeddedResource Include="Shared\IrSemantics.cs" LogicalName="Templates/IrSemantics.cs" />
+    <EmbeddedResource Include="Shared\Ps2Runtime.cs" LogicalName="Templates/Ps2Runtime.cs" />
   </ItemGroup>
 
 </Project>

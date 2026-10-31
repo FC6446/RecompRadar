@@ -14,8 +14,9 @@ program, check that program against a reference interpreter, and start it.
 > **What works today, in one paragraph.** A *self-made* MIPS32 program (the CPU family of the PlayStation 2) can be turned
 > into a Windows `.exe`; RecompRadar proves for that run that the result behaves like a reference interpreter, and can
 > start it. The built program is **translated code that runs on the .NET JIT** – it is labelled that way and is not
-> presented as "native". There is **no console runtime** (no PS2/PS3/PS4 kernel, graphics, sound or input), so **no
-> commercial game can run**, and PlayStation 3 and 4 support is planned, not implemented. RecompRadar does not decrypt,
+> presented as "native". The runtime is only a **first slice of the PlayStation 2** (memory map, serial text output, 18 kernel
+> calls for threads and semaphores): there is no graphics, sound, controller or file layer, and the R5900's 64-bit instructions
+> are missing, so **no commercial game can run**. PlayStation 3 and 4 support is planned, not implemented. RecompRadar does not decrypt,
 > unpack or circumvent protection and ships no console keys, firmware, BIOS or game data.
 > Full status and limits: [docs/recompilation.md](docs/recompilation.md).
 
@@ -105,16 +106,20 @@ Implemented and covered by automated tests (including real builds); the limits a
 * **Console Backends page:** detection hints and a module-by-module status for PS2, PS3, PS4 and generic MIPS32.
 * **Recompiler & Build page:** Recompile, Cancel, Play and Stop are real; whenever one is disabled the exact reason is shown.
 * **Command line:** `recompradar-cli recompile <file> [--platform ps2] [--out folder] [--run]` runs the same pipeline.
-* **Self-made test program:** `samples/ps2_style_selftest.elf` (recursion, sorting, strings, HI/LO, floats; about 454 000
-  guest instructions) with an independent C# oracle for its expected output.
+* **Self-made test programs:** `samples/ps2_style_selftest.elf` (recursion, sorting, strings, HI/LO, floats; about 454 000
+  guest instructions) with an independent C# oracle for its expected output, and `samples/ps2_kernel_selftest.elf` for the PS2 runtime below.
+* **PlayStation 2 runtime profile (Milestone B, first part):** with the PlayStation 2 target, programs see the EE memory map
+  (32 MiB RAM with KSEG0/KSEG1 mirrors, scratchpad), serial text output and 18 EE kernel calls (threads, semaphores, sleep/wakeup,
+  priorities) with numbers from the public ps2sdk headers. The interpreter and the built program share one source file for it.
 
 ## What it does not do
 
 * It does not run analyzed files. The only program it ever starts is one it built itself, when you press *Play* (or `--run`).
 * It does not decrypt, unpack or circumvent protection. Encrypted containers (SELF, `~PSP`, PBP) are only *recognised*.
   No console keys, firmware or BIOS images are used or shipped.
-* It cannot run commercial games: there is no PlayStation kernel, graphics, sound, input or file layer. Only five RecompRadar
-  test system calls (exit and simple output) exist.
+* It cannot run commercial games: of the PlayStation 2 runtime only the memory map, serial text output and 18 kernel calls exist
+  (see [docs/recompilation.md](docs/recompilation.md#playstation-2-runtime-profile-milestone-b-first-part)); there is no graphics,
+  sound, controller or file layer, and the R5900's 64-bit and 128-bit instructions are not translated.
 * It has no PlayStation 3 or PlayStation 4 backend. Those are planned (see [milestones](#milestones-and-roadmap)); PowerPC 64
   and x86-64 files are analyzed for the portability report only.
 * It does not produce ahead-of-time machine code. Built programs need the .NET 10 runtime and are JIT-compiled at start-up.
@@ -192,12 +197,12 @@ projects target `net10.0` and build on any platform. On Linux or macOS build the
 dotnet test RecompRadar.sln -c Release
 ```
 
-There are two xUnit projects, together **331 tests** (about 35 seconds, most of it real `dotnet build` runs of generated programs):
+There are two xUnit projects, together **381 tests** (about 35 seconds, most of it real `dotnet build` runs of generated programs):
 
-* `tests/RecompRadar.Tests` (286 tests, any platform) covers the analysis core, storage, export, the MIPS plugin, the control-flow
+* `tests/RecompRadar.Tests` (335 tests, any platform) covers the analysis core, storage, export, the MIPS plugin, the control-flow
   analysis, the generator, the compatibility engine, and end-to-end builds: the self-made program is built into a real `.exe`, started,
   and its output compared with an independent oracle and with the reference interpreter. Builds are skipped (and reported as skipped) if no .NET SDK is installed.
-* `tests/RecompRadar.App.Tests` (45 tests, Windows only) runs the real view models against the real pipeline and a temporary SQLite database
+* `tests/RecompRadar.App.Tests` (46 tests, Windows only) runs the real view models against the real pipeline and a temporary SQLite database
   (the build system is replaced by a fake so that page logic is tested without building), feeds real drag-and-drop events into the
   `FileDrop` behavior, and loads every page of the real window for every sample while failing on any XAML or binding error.
 
@@ -313,7 +318,7 @@ the same IR to produce fully native programs on machines that have the toolchain
 | Milestone | Scope | Status |
 | --- | --- | --- |
 | **A – PS2 recompiler (CPU)** | analysis, IR, translator, generator, Windows build, validation, self-test, compatibility engine, UI, CLI | **Implemented** for the MIPS32 subset above |
-| **B – PS2 runtime** | EE kernel services, memory map, graphics, input, files | **Planned**, not started |
+| **B – PS2 runtime** | EE kernel services, memory map, graphics, input, files | **Started (partial)**: memory map, serial output, 18 kernel calls; no 64-bit instructions, graphics, input or files yet |
 | **C – PS3 backend** | PowerPC 64, LV2 services | **Planned**, not started |
 | **D – PS4 backend** | x86-64 loader, Orbis system layer | **Planned**, not started |
 | **E – Universal UI** | importer, disassembler, CFG, backend pages, build manager, debugger | **Partial**: Disassembler, Console Backends and Recompiler & Build exist |
@@ -343,8 +348,9 @@ tatsächlich gefundenen Fakten einen technischen Portierungsbericht. Seit Versio
 **Windows-Programm** bauen, dieses gegen einen Referenz-Interpreter prüfen und starten.
 
 **Ehrlich zum Stand:** Das gebaute Programm ist *übersetzter Code, der auf dem .NET-JIT läuft* – nicht „nativ“ im Sinne von
-vorab erzeugtem Maschinencode – und braucht die .NET-10-Laufzeit. Es gibt **keine Konsolen-Laufzeit** (kein PS2/PS3/PS4-Kernel,
-keine Grafik, kein Ton, keine Eingabe); kommerzielle Spiele laufen damit **nicht**. PS3 und PS4 sind geplant, nicht umgesetzt.
+vorab erzeugtem Maschinencode – und braucht die .NET-10-Laufzeit. Von der PS2-Laufzeit gibt es nur einen **ersten Teil** (Speicherkarte,
+serielle Textausgabe, 18 Kernel-Aufrufe für Threads und Semaphoren); es gibt keine Grafik, keinen Ton, keine Controller-Eingabe
+und keine 64-Bit-Befehle des R5900, kommerzielle Spiele laufen damit **nicht**. PS3 und PS4 sind geplant, nicht umgesetzt.
 RecompRadar entschlüsselt nichts, umgeht keinen Kopierschutz und enthält keine Konsolen-Schlüssel, Firmware oder Spieldaten.
 
 **Starten unter Windows 10/11 (x64):**
@@ -358,5 +364,5 @@ RecompRadar entschlüsselt nichts, umgeht keinen Kopierschutz und enthält keine
 5. Dieselbe Pipeline auf der Kommandozeile:
    `dotnet run --project tools/RecompRadar.Cli -c Release -- recompile samples/ps2_style_selftest.elf --platform ps2 --out build/selftest --run`
 
-**Tests:** `dotnet test RecompRadar.sln -c Release` (331 Tests). Die Oberfläche ist derzeit englisch.
+**Tests:** `dotnet test RecompRadar.sln -c Release` (381 Tests). Die Oberfläche ist derzeit englisch.
 Stand der Meilensteine und genauer Plan für den Rest: [docs/recompilation.md](docs/recompilation.md).

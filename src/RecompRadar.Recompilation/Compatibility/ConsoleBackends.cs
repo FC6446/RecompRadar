@@ -44,9 +44,10 @@ public static class ConsoleBackendRegistry
     public static IReadOnlyList<ConsoleBackend> All { get; } =
     [
         new ConsoleBackend(
-            Ps2, "PlayStation 2 (Emotion Engine, MIPS R5900)", "MIPS32 little-endian (R5900)", "A (CPU pipeline) done, B (runtime) planned",
+            Ps2, "PlayStation 2 (Emotion Engine, MIPS R5900)", "MIPS32 little-endian (R5900)", "A (CPU pipeline) done, B (runtime) started",
             "The CPU pipeline works for self-made programs: analysis, translation, a real Windows program and validation against a reference interpreter. " +
-            "There is no PS2 runtime yet, so no real PS2 software can run.",
+            "The runtime is a start: EE memory map, serial text output and a few kernel calls. There is no graphics, sound, input or file layer, " +
+            "and the R5900's 64-bit and 128-bit instructions are missing, so no real PS2 software can run.",
             [
                 new("ELF loader", ModuleState.Implemented, "Maps the loadable segments of a 32-bit MIPS ELF. No IRX/IOP modules, no relocation of dynamic objects."),
                 new("Instruction decoder", ModuleState.Partial, "MIPS32 integer instructions, HI/LO, conditional moves, jump-and-link, single-precision FPU. Missing: branch-likely, unaligned loads/stores, 64-bit R5900 instructions, 128-bit MMI, COP0, VU0 macro mode."),
@@ -54,8 +55,10 @@ public static class ConsoleBackendRegistry
                 new("Control-flow analysis", ModuleState.Implemented, "Basic blocks, functions, call graph and cross references by recursive descent. Register jumps and jump tables are reported, not resolved."),
                 new("Code generator and Windows build", ModuleState.Implemented, "Translates blocks to C#, builds a Windows program with the .NET SDK. The result is translated code on the .NET JIT, not ahead-of-time machine code."),
                 new("Validation against reference interpreter", ModuleState.Implemented, "Compares end state, output, instruction count and registers for one run."),
-                new("RecompRadar test runtime", ModuleState.Implemented, "Own system call ABI (exit, write byte/int/float/string). This is not a PS2 interface."),
-                new("EE kernel services (syscalls, threads, semaphores)", ModuleState.Planned, "Milestone B."),
+                new("RecompRadar test runtime", ModuleState.Implemented, "Own system call ABI (exit, write byte/int/float/string); in the PS2 profile it is used when $v1 is 0, a number the real kernel does not use. This is not a PS2 interface."),
+                new("EE memory map", ModuleState.Partial, "32 MiB RAM with the KSEG0/KSEG1 mirrors, the 16 KiB scratchpad and the serial port. All other I/O registers, TLB, caches and the uncached-accelerated mirror are not modelled; executable segments are write-protected."),
+                new("Serial text output", ModuleState.Implemented, "A byte stored to SIO_TXFIFO (0x1000F180) is printed; SIO_ISR reads as ready. Addresses from ps2sdk's sio.h."),
+                new("EE kernel services (threads, semaphores, sleep/wakeup)", ModuleState.Partial, "18 calls with numbers from ps2sdk's syscallnr.h (CreateThread, StartThread, ExitThread, SleepThread, WakeupThread, CreateSema, SignalSema, WaitSema, KExit, ...). Priority scheduling without time slicing or interrupts; return values follow convention and were not compared with real hardware. Not implemented: SetupThread/SetupHeap, i-variants, timers, alarms, interrupt handlers, DMA, ReferThreadStatus."),
                 new("Graphics Synthesizer (GS) and GIF/DMA", ModuleState.Planned, "Milestone B/F. A software or Direct3D/Vulkan output is not started."),
                 new("Vector units VU0/VU1", ModuleState.Planned, "Milestone F."),
                 new("IOP, SIF and IRX modules", ModuleState.Planned, "Milestone B/F."),

@@ -1,4 +1,3 @@
-using System.Text;
 using RecompRadar.Recompilation.IR;
 using RecompRadar.Semantics;
 
@@ -7,17 +6,16 @@ namespace RecompRadar.Recompilation.Execution;
 /// <summary>
 /// Minimal runtime layer with RecompRadar's own tiny proof-of-concept system call ABI (see <see cref="PocSystemCalls"/>).
 /// It is not the system interface of any real console or operating system. The generated Windows programs use the very same
-/// shared implementation, so both produce identical output.
+/// shared implementation, so both produce identical output. Output goes to <see cref="GuestMachine.Output"/>.
 /// </summary>
-public sealed class PocRuntime : IRuntimeCompatibilityLayer, IOutputCapture
+public sealed class PocRuntime : IRuntimeCompatibilityLayer
 {
-    private readonly StringBuilder _output = new();
-
     public string Name => "RecompRadar PoC runtime (exit, write byte/int/float/string)";
 
-    public string CapturedOutput => _output.ToString();
+    public SyscallOutcome HandleSyscall(GuestMachine machine) => HandleTestCall(machine);
 
-    public SyscallOutcome HandleSyscall(GuestMachine machine)
+    /// <summary>Performs the RecompRadar test call selected by $v0.</summary>
+    internal static SyscallOutcome HandleTestCall(GuestMachine machine)
     {
         var result = PocSystemCalls.Handle(
             machine.Registers[2],
@@ -28,7 +26,7 @@ public sealed class PocRuntime : IRuntimeCompatibilityLayer, IOutputCapture
                 Span<byte> one = stackalloc byte[1];
                 return machine.TryRead(address, one) ? one[0] : -1;
             },
-            _output);
+            machine.Output);
 
         switch (result.Action)
         {

@@ -20,7 +20,7 @@ built programs are translated code on the .NET JIT, not ahead-of-time machine co
 | 2 | Architecture decoder | `IArchitectureDecoder` | `MipsDecoder` – readable disassembly, unknown words are shown as `.word` |
 | 3 | Intermediate representation | `IR.IrBlock`, `IrInstruction`, `IrTerminator` | 32-bit three-address code; 128 virtual registers (0-31 guest GPRs, HI/LO, FPU condition, 32 FPU registers as raw bits, block-local temporaries) |
 | 4 | Code translator | `ICodeTranslator` | `MipsTranslator` – one basic block at a time, delay slots folded into the block |
-| 5 | Runtime compatibility layer | `IRuntimeCompatibilityLayer` | `PocRuntime` – exit, write byte/integer/float/string (RecompRadar's own tiny ABI, not a console's) |
+| 5 | Runtime compatibility layer | `IRuntimeCompatibilityLayer` | `PocRuntime` – exit, write byte/integer/float/string (RecompRadar's own tiny ABI, not a console's); `Ps2Runtime` for the PlayStation 2 profile (EE memory map, serial output, 18 kernel calls) |
 | 6 | Backend | `ICodeBackend` (`IsNative`), `CSharpGenerator` | `IrInterpreter` – reference interpreter, `IsNative == false`; `CSharpGenerator` produces a project that builds into a Windows program (translated code with runtime, not AOT machine code) |
 
 A plugin groups these for one architecture:
@@ -37,6 +37,7 @@ public interface IRecompilerPlugin
     IArchitectureDecoder? CreateDecoder();
     ICodeTranslator? CreateTranslator();
     IRuntimeCompatibilityLayer? CreateRuntime();
+    IRuntimeCompatibilityLayer? CreateRuntime(RuntimeProfile profile);   // Ps2Ee selects the PlayStation 2 runtime
     ICodeBackend? CreateBackend();
 
     // System call numbers that end the program, so the analysis does not treat the code behind them as reachable.

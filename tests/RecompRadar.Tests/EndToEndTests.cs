@@ -73,27 +73,27 @@ internal static class NativeTestHelper
         return new MipsPocPlugin().CreateLoader()!.Load(stream, elf);
     }
 
-    public static GeneratedProject Generate(byte[] elfBytes, string name, bool allowIncomplete = false, ProgramGraph? graph = null)
+    public static GeneratedProject Generate(byte[] elfBytes, string name, bool allowIncomplete = false, ProgramGraph? graph = null, RuntimeProfile profile = RuntimeProfile.RecompRadarTest)
     {
         var image = Load(elfBytes, out var elf);
         var plugin = new MipsPocPlugin();
         graph ??= ProgramAnalyzer.Analyze(AnalysisInputFactory.FromImage(image, elf, plugin.CreateTranslator()!, plugin.NoReturnSystemCalls));
         return CSharpGenerator.Generate(graph, Load(elfBytes, out _), new GenerationOptions(
-            name, name + ".elf", Convert.ToHexString(SHA256.HashData(elfBytes)).ToLowerInvariant(), "MIPS32", "test", allowIncomplete));
+            name, name + ".elf", Convert.ToHexString(SHA256.HashData(elfBytes)).ToLowerInvariant(), "MIPS32", "test", allowIncomplete, profile));
     }
 
-    public static async Task<BuiltProgram> BuildAsync(byte[] elfBytes, string name, bool allowIncomplete = false, string? subfolder = null)
+    public static async Task<BuiltProgram> BuildAsync(byte[] elfBytes, string name, bool allowIncomplete = false, string? subfolder = null, RuntimeProfile profile = RuntimeProfile.RecompRadarTest)
     {
         var image = Load(elfBytes, out var elf);
         var plugin = new MipsPocPlugin();
         var graph = ProgramAnalyzer.Analyze(AnalysisInputFactory.FromImage(image, elf, plugin.CreateTranslator()!, plugin.NoReturnSystemCalls));
-        var project = Generate(elfBytes, name, allowIncomplete, graph);
+        var project = Generate(elfBytes, name, allowIncomplete, graph, profile);
         var directory = subfolder is null ? Path.Combine(Root, name) : Path.Combine(Root, subfolder, name);
         var build = await ProjectBuilder.BuildAsync(project, directory);
         return new BuiltProgram { Graph = graph, Project = project, Build = build, Directory = directory, Elf = elfBytes };
     }
 
-    public static ExecutionResult Reference(byte[] elfBytes, long maxInstructions = 50_000_000) => RefRun.RunElf(elfBytes, maxInstructions);
+    public static ExecutionResult Reference(byte[] elfBytes, long maxInstructions = 50_000_000, RuntimeProfile profile = RuntimeProfile.RecompRadarTest) => RefRun.RunElf(elfBytes, maxInstructions, profile);
 
     public static void Cleanup()
     {

@@ -254,7 +254,7 @@ public sealed partial class DisassemblerViewModel : PageViewModel
 
         foreach (var s in graph.SyscallSites)
         {
-            Syscalls.Add(new SyscallRow($"0x{s.Address:X8}", s.Number is { } n ? n.ToString() : "unknown", SyscallMeaning(s.Number)));
+            Syscalls.Add(new SyscallRow($"0x{s.Address:X8}", s.Number is { } n ? (s.Abi == SyscallAbi.Ps2Kernel ? $"0x{n:X}" : n.ToString()) : "unknown", SyscallMeaning(s)));
         }
 
         foreach (var j in graph.ResolvedIndirectJumps)
@@ -278,16 +278,30 @@ public sealed partial class DisassemblerViewModel : PageViewModel
         return string.Empty;
     }
 
-    private static string SyscallMeaning(uint? number) => number switch
+    private static string SyscallMeaning(SyscallSite site)
     {
-        PocSystemCalls.Exit => "RecompRadar test call: exit",
-        PocSystemCalls.WriteByte => "RecompRadar test call: write byte",
-        PocSystemCalls.WriteInt => "RecompRadar test call: write integer",
-        PocSystemCalls.WriteFloat => "RecompRadar test call: write float",
-        PocSystemCalls.WriteString => "RecompRadar test call: write string",
-        null => "number is not a constant in this block",
-        _ => "not implemented by the RecompRadar runtime (no console kernel exists)",
-    };
+        if (site.Abi == SyscallAbi.Ps2Kernel)
+        {
+            var number = unchecked((int)site.Number!.Value);
+            var name = Ps2Kernel.NameOf(number);
+            return name is null
+                ? "PlayStation 2 kernel call with an unknown number (not implemented)"
+                : Ps2Kernel.IsImplemented(number)
+                    ? $"PlayStation 2 kernel call {name} (implemented as a subset)"
+                    : $"PlayStation 2 kernel call {name} (not implemented)";
+        }
+
+        return site.Number switch
+        {
+            PocSystemCalls.Exit => "RecompRadar test call: exit",
+            PocSystemCalls.WriteByte => "RecompRadar test call: write byte",
+            PocSystemCalls.WriteInt => "RecompRadar test call: write integer",
+            PocSystemCalls.WriteFloat => "RecompRadar test call: write float",
+            PocSystemCalls.WriteString => "RecompRadar test call: write string",
+            null => "number is not a constant in this block",
+            _ => "not implemented by the RecompRadar runtime (test calls are 1 to 5)",
+        };
+    }
 
     private static string ExitText(CfgBlock block) => block.Exit switch
     {

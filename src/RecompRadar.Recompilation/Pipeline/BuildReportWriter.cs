@@ -31,6 +31,7 @@ internal static class BuildReportWriter
                 level = compat.Level,
                 headline = compat.Headline,
                 platform = compat.PlatformId,
+                runtimeProfile = compat.Profile,
                 platformSource = compat.PlatformSource,
                 backend = compat.Backend?.DisplayName,
                 notes = compat.Notes.Select(n => new { kind = n.Kind, text = n.Text }),
@@ -66,7 +67,7 @@ internal static class BuildReportWriter
             limitations = new[]
             {
                 "The program is translated CPU code compiled to .NET IL and JIT-compiled at start-up. It is not ahead-of-time machine code and needs the .NET 10 runtime.",
-                "Only the RecompRadar test runtime exists (exit and simple output). No console kernel, graphics, sound, input or file services are provided.",
+                "The runtime is small: RecompRadar test calls (exit, simple output) and, for the PlayStation 2 profile, the EE memory map, serial output and a few kernel calls. No graphics, sound, input, file, timer or interrupt services are provided.",
                 "Control flow that static analysis could not recover (register jumps, jump tables) faults at run time with a message.",
                 "Writes into executable memory (self-modifying code) are not supported and fault at run time.",
                 "Validation compares one run of the built program with the reference interpreter. It does not prove equivalence for other inputs or paths.",
