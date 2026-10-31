@@ -1,14 +1,16 @@
-# Recompiler plugin interfaces and the MIPS32 proof of concept
+# Recompiler plugin interfaces and the MIPS32 plugin
 
-RecompRadar is an analysis tool today. The `RecompRadar.Recompilation` project defines the interfaces a future
-recompiler would be built from, and contains one small, working proof of concept that exercises all of them.
+The `RecompRadar.Recompilation` project defines the interfaces a recompiler is built from and contains one working plugin
+for 32-bit MIPS that exercises all of them. How the pieces fit into the pipeline (analysis, C# generation, Windows build,
+validation) is described in [recompilation.md](recompilation.md).
 
-**What the proof of concept is:** a decoder, a translator to a 32-bit integer IR and a reference interpreter for a small
-integer subset of MIPS32, used to run *self-made* test programs (see `samples/poc_*.elf`).
+**What the MIPS plugin is:** a loader, a decoder, a translator to a 32-bit IR, a reference interpreter and a code
+generator for the MIPS32 integer, HI/LO and single-precision FPU subset. It is used for *self-made* test programs
+(`samples/poc_*.elf`, `samples/ps2_style_selftest.elf`) and as the CPU part of the PlayStation 2 backend.
 
-**What it is not:** it cannot run commercial software. It has no FPU, no HI/LO registers (`mult`, `div`, `mfhi`), no
-coprocessors, no branch-likely instructions, no unaligned loads, no console system interfaces, and it is not a native code
-generator. The UI does not offer any "run" or "recompile" action, because none would be honest.
+**What it is not:** it cannot run commercial software. It has no branch-likely instructions, no unaligned loads and stores,
+no 64-bit or 128-bit (MMI) R5900 instructions, no coprocessor 0, no vector units and no console system interfaces. The
+built programs are translated code on the .NET JIT, not ahead-of-time machine code.
 
 ## The six building blocks
 
@@ -16,10 +18,10 @@ generator. The UI does not offer any "run" or "recompile" action, because none w
 | --- | --- | --- | --- |
 | 1 | Binary loader | `IBinaryLoader` | `ElfImageLoader` – maps `PT_LOAD` segments, validates sizes, offsets and overlaps |
 | 2 | Architecture decoder | `IArchitectureDecoder` | `MipsDecoder` – readable disassembly, unknown words are shown as `.word` |
-| 3 | Intermediate representation | `IR.IrBlock`, `IrInstruction`, `IrTerminator` | 32-bit three-address code; 64 virtual registers (0-31 mirror the guest registers) |
+| 3 | Intermediate representation | `IR.IrBlock`, `IrInstruction`, `IrTerminator` | 32-bit three-address code; 128 virtual registers (0-31 guest GPRs, HI/LO, FPU condition, 32 FPU registers as raw bits, block-local temporaries) |
 | 4 | Code translator | `ICodeTranslator` | `MipsTranslator` – one basic block at a time, delay slots folded into the block |
-| 5 | Runtime compatibility layer | `IRuntimeCompatibilityLayer` | `PocRuntime` – exit, write byte, write integer (RecompRadar's own tiny ABI, not a console's) |
-| 6 | Native compiler backend | `ICodeBackend` (`IsNative`) | `IrInterpreter` – reference interpreter, `IsNative == false` |
+| 5 | Runtime compatibility layer | `IRuntimeCompatibilityLayer` | `PocRuntime` – exit, write byte/integer/float/string (RecompRadar's own tiny ABI, not a console's) |
+| 6 | Backend | `ICodeBackend` (`IsNative`), `CSharpGenerator` | `IrInterpreter` – reference interpreter, `IsNative == false`; `CSharpGenerator` produces a project that builds into a Windows program (translated code with runtime, not AOT machine code) |
 
 A plugin groups these for one architecture:
 
@@ -36,6 +38,10 @@ public interface IRecompilerPlugin
     ICodeTranslator? CreateTranslator();
     IRuntimeCompatibilityLayer? CreateRuntime();
     ICodeBackend? CreateBackend();
+
+    // System call numbers that end the program, so the analysis does not treat the code behind them as reachable.
+    // Optional: the default is an empty set.
+    IReadOnlySet<uint> NoReturnSystemCalls { get; }
 }
 ```
 
@@ -66,6 +72,7 @@ inside a delay slot is refused with a clear message.
 var plugin = new MipsPocPlugin();
 using var stream = File.OpenRead("samples/poc_mips32_be_sum.elf");
 var elf = new ElfParser().Parse(stream).Elf!;
+stream.Position = 0;
 var image = plugin.CreateLoader()!.Load(stream, elf);
 var machine = GuestMachine.FromImage(image);
 var result = plugin.CreateBackend()!.Run(machine, plugin.CreateTranslator()!, plugin.CreateRuntime()!);
@@ -75,12 +82,9 @@ var result = plugin.CreateBackend()!.Run(machine, plugin.CreateTranslator()!, pl
 Safety limits: the loader refuses oversized or overlapping segments; the interpreter stops after a configurable number of
 guest instructions; every invalid memory access becomes a `Faulted` result, never a host exception.
 
-## Where a real recompiler would go from here
+## Where it goes from here
 
-1. More decoders (MIPS III + R5900 MMI, PowerPC with paired singles, ARM/Thumb).
-2. A richer IR (64-bit values, floating point, vector operations, explicit memory model).
-3. Static control-flow recovery and function discovery (uses the symbols the analyzer already reads).
-4. A native backend (for example LLVM IR emission) behind the existing `ICodeBackend`.
-5. Per-platform runtime layers (operating-system calls, graphics, audio, input) behind `IRuntimeCompatibilityLayer`.
-
-Each step can be developed against small self-made programs first, exactly like the proof of concept.
+See "Plan for the remaining milestones" in [recompilation.md](recompilation.md): 64-bit registers in the IR, the PS2 runtime
+(EE kernel services, memory map, input, graphics), a PowerPC 64 plugin, an x86-64 loader, and a backend that produces
+fully native code on machines that have a compiler toolchain. Each step is developed against small self-made programs first,
+with an independent oracle, exactly like the MIPS plugin.

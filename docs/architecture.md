@@ -22,7 +22,7 @@ WPF shell builds and is tested on any platform.
 +-----------+ +-----------------+ +---------------------+       |
 | BinaryAnalysis | Architectures | Recompilation        |       |
 | ELF parser     | CPU catalog   | plugin interfaces,   |       |
-| dependencies   | platform      | IR, MIPS32 PoC       |       |
+| dependencies   | platform      | IR, MIPS32 plugin    |       |
 | knowledge base | heuristics    |                      |       |
 +-------+--------+------+--------+----------+-----------+       |
         \               |                   /                   /
@@ -36,13 +36,32 @@ WPF shell builds and is tested on any platform.
 | `RecompRadar.Core` | Result model (`AnalysisResult`, `ElfFile`, `PortabilityReport`, ...), interfaces (`IAnalysisPipeline`, `IProjectStore`, `IPlatformHeuristic`, `IReportExporter`), `AnalysisLimits`, diagnostics | nothing |
 | `RecompRadar.BinaryAnalysis` | Bounds-checked ELF parser, format detection, string scanner, knowledge base, dependency analyzer | Core |
 | `RecompRadar.Architectures` | CPU architecture assessment, MIPS flag decoding, platform heuristics (PS1/PS2/PS3/PS4/PSP/GameCube/Wii/Linux) | Core |
-| `RecompRadar.Recompilation` | Plugin interfaces for a future recompiler, 32-bit IR, MIPS32 integer-subset decoder/translator, reference interpreter | Core |
+| `RecompRadar.Recompilation` | Plugin interfaces, 32-bit IR, MIPS32 decoder/translator, control-flow analysis (`Analysis`), C# generator (`Generation`), .NET build and launcher (`Build`), compatibility engine and console backend registry (`Compatibility`), the whole pipeline (`Pipeline`), reference interpreter (`Execution`) | Core |
 | `RecompRadar.Portability` | `AnalysisPipeline` orchestration, report builder, exporters | Core, BinaryAnalysis, Architectures, Recompilation |
 | `RecompRadar.Infrastructure` | SQLite project store, settings, paths, structured logging | Core |
-| `RecompRadar.App` | WPF shell: MVVM view models, dark theme, drag and drop | all of the above |
+| `RecompRadar.App` | WPF shell: MVVM view models, dark theme, drag and drop; pages for analysis, disassembly, console backends and the recompiler | all of the above |
 | `tests/RecompRadar.TestSupport` | `ElfBuilder` and a MIPS mini-assembler that create synthetic test programs | - |
 | `tests/RecompRadar.Tests` | xUnit tests | all libraries |
 | `tools/RecompRadar.SampleGenerator` | Writes the files in `samples/` | TestSupport |
+| `tools/RecompRadar.Cli` | `recompradar-cli recompile <file>`: the recompilation pipeline from the command line | BinaryAnalysis, Recompilation |
+
+## Recompilation flow
+
+The recompilation pipeline sits next to the analysis flow and starts from a parsed `ElfFile`
+(details, status and limits: [recompilation.md](recompilation.md)):
+
+```
+ElfFile --plugin--> LoadedImage --ProgramAnalyzer--> ProgramGraph --CompatibilityEngine--> assessment
+                                         |                                   |
+                                         +--------CSharpGenerator<-----------+  (blocked when Unsupported)
+                                                       |
+                                          dotnet build (ProjectBuilder) --> <name>.exe
+                                                       |
+                         ProgramLauncher + IrInterpreter --> DifferentialValidator --> build-report.json
+```
+
+`Shared/IrSemantics.cs` is compiled into the library *and* copied verbatim into every generated program, so the reference
+interpreter and the built program share one definition of the arithmetic and of the test system calls.
 
 ## Analysis flow
 

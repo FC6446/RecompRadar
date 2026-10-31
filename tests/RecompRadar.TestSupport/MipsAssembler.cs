@@ -9,7 +9,7 @@ public static class Reg
 }
 
 /// <summary>
-/// Tiny two-pass assembler for the MIPS32 integer subset used by the proof of concept.
+/// Tiny two-pass assembler for the MIPS32 subset (integer, HI/LO, single-precision FPU) that RecompRadar translates.
 /// It exists only to create self-made test programs; the programs it produces contain no third-party code.
 /// </summary>
 public sealed class MipsProgram

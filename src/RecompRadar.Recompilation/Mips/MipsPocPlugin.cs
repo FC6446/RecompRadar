@@ -7,9 +7,9 @@ using RecompRadar.Semantics;
 namespace RecompRadar.Recompilation.Mips;
 
 /// <summary>
-/// Educational proof of concept for 32-bit MIPS. It decodes and translates a small integer subset and can execute
-/// self-made test programs on a reference interpreter. It cannot run commercial software: it has no FPU, no HI/LO,
-/// no coprocessors and no console system interfaces.
+/// Recompiler plugin for 32-bit MIPS: it decodes and translates the integer, HI/LO and single-precision FPU subset, analyzes the control flow,
+/// can run programs on a reference interpreter and can generate Windows programs. It is meant for self-made test programs and the PS2 CPU pipeline;
+/// it has no 128-bit multimedia instructions, no vector units, no coprocessor 0 and no console system interfaces, so it cannot run commercial software.
 /// </summary>
 public sealed class MipsPocPlugin : IRecompilerPlugin
 {
@@ -18,7 +18,7 @@ public sealed class MipsPocPlugin : IRecompilerPlugin
 
     public string Id => "recompradar.mips32-poc";
 
-    public string DisplayName => "MIPS32 proof of concept (integer subset)";
+    public string DisplayName => "MIPS32 subset (integer, HI/LO, single-precision FPU)";
 
     public string Description =>
         "Decodes and translates the integer, HI/LO and single-precision FPU subset of 32-bit MIPS into a 32-bit IR, runs it on a reference interpreter " +

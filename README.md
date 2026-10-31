@@ -3,31 +3,40 @@
 </p>
 
 <h1 align="center">RecompRadar</h1>
-<p align="center"><strong>Console Binary Analysis and Native Portability Research Tool</strong></p>
+<p align="center"><strong>Console Binary Analysis and Recompilation Framework</strong></p>
 
 RecompRadar inspects executable files of console programs and tells you, from facts found in the file, **what a native
 Windows port would require**: which CPU architecture the code uses, whether it can run on a PC processor at all, which
-libraries and APIs it refers to, and which information is still missing.
+libraries and APIs it refers to, and which information is still missing. Since version 3.0 it also contains a
+**recompilation framework**: it can analyze the control flow of a 32-bit MIPS program, translate it into a real Windows
+program, check that program against a reference interpreter, and start it.
 
-> **RecompRadar is an analysis tool, not a universal console recompiler.**
-> It does not run, decrypt or convert console software, and it makes no promise that any commercial game can be ported or
-> started. The recompilation code in this repository is a small, honest proof of concept for self-made test programs
-> (see [docs/plugins.md](docs/plugins.md)).
+> **What works today, in one paragraph.** A *self-made* MIPS32 program (the CPU family of the PlayStation 2) can be turned
+> into a Windows `.exe`; RecompRadar proves for that run that the result behaves like a reference interpreter, and can
+> start it. The built program is **translated code that runs on the .NET JIT** – it is labelled that way and is not
+> presented as "native". There is **no console runtime** (no PS2/PS3/PS4 kernel, graphics, sound or input), so **no
+> commercial game can run**, and PlayStation 3 and 4 support is planned, not implemented. RecompRadar does not decrypt,
+> unpack or circumvent protection and ships no console keys, firmware, BIOS or game data.
+> Full status and limits: [docs/recompilation.md](docs/recompilation.md).
 
 <p align="center">
-  <img src="docs/screenshots/architecture.png" alt="Architecture Inspector" width="49%" />
+  <img src="docs/screenshots/recompiler.png" alt="Recompiler and Build page" width="49%" />
+  <img src="docs/screenshots/disassembler.png" alt="Disassembler page" width="49%" />
+</p>
+<p align="center">
+  <img src="docs/screenshots/consoles.png" alt="Console Backends page" width="49%" />
   <img src="docs/screenshots/report.png" alt="Portability Report" width="49%" />
 </p>
 
 All screenshots in this repository were produced by the real application with `tools/capture-screenshots.ps1`, using the
-synthetic files from `samples/`.
+synthetic files from `samples/`. The Recompiler screenshot shows the state before a build.
 
 ## Contents
 
-* [Features](#features) · [What it does not do](#what-it-does-not-do) · [Supported formats](#supported-formats)
+* [Features](#features) · [Recompilation framework](#recompilation-framework-milestone-a) · [What it does not do](#what-it-does-not-do) · [Supported formats](#supported-formats)
 * [Install and run](#install-and-run) · [Build](#build) · [Tests](#tests)
 * [Using the app](#using-the-app) · [How to read the results](#how-to-read-the-results)
-* [Project architecture](#project-architecture) · [Technical limitations](#technical-limitations) · [Roadmap](#roadmap)
+* [Project architecture](#project-architecture) · [Technical limitations](#technical-limitations) · [Milestones and roadmap](#milestones-and-roadmap)
 * [Safety and legal](#safety-and-legal) · [Kurzanleitung (Deutsch)](#kurzanleitung-deutsch)
 
 ## Features
@@ -73,15 +82,43 @@ Everything listed here is implemented and covered by automated tests.
 **Engineering**
 * Asynchronous analysis with progress and cancellation; structured JSON-lines logging (Serilog).
 * Dark, rounded UI with sidebar navigation, animated page changes and toggles (can be switched off).
-* Recompiler plugin interfaces (loader, decoder, IR, translator, runtime layer, backend) and a MIPS32 proof of concept.
+* Recompiler plugin interfaces (loader, decoder, IR, translator, runtime layer, backend) and a MIPS32 plugin.
+
+## Recompilation framework (Milestone A)
+
+Implemented and covered by automated tests (including real builds); the limits are listed in
+[docs/recompilation.md](docs/recompilation.md).
+
+* **Disassembler page:** functions (from the entry point, symbols and call targets), basic blocks, disassembly, the
+  intermediate representation, call graph, cross references, system call sites and findings. A permanent panel states what is
+  inferred and what could not be followed (register jumps, unsupported instructions, analysis limits).
+* **Control-flow analysis:** recursive descent with block splitting, delay-slot aware, block-local constant propagation that
+  resolves `lui/ori` + `jr/jalr`, call-return assumption stated openly.
+* **Code generation and Windows build:** one C# method per block plus a dispatcher; the .NET SDK builds a real `.exe`
+  (no packages are downloaded; the same input builds to the same file hashes).
+* **Build categories that tell the truth:** fully native / translated code with runtime (JIT) / native with compatibility layer /
+  interpreted / unsupported. Today's output is *translated code with runtime (JIT)*.
+* **Validation:** the built program and a reference interpreter run the same input and are compared (end state, exit code,
+  instruction count, output, registers). A program that differs is marked untrusted and cannot be started from the UI.
+* **Compatibility engine:** *Supported / Partially Supported / Experimental / Unsupported / Unknown*, derived from the file,
+  the analysis and the list of implemented modules. No file reaches *Supported*; a manual platform choice never raises the level.
+* **Console Backends page:** detection hints and a module-by-module status for PS2, PS3, PS4 and generic MIPS32.
+* **Recompiler & Build page:** Recompile, Cancel, Play and Stop are real; whenever one is disabled the exact reason is shown.
+* **Command line:** `recompradar-cli recompile <file> [--platform ps2] [--out folder] [--run]` runs the same pipeline.
+* **Self-made test program:** `samples/ps2_style_selftest.elf` (recursion, sorting, strings, HI/LO, floats; about 454 000
+  guest instructions) with an independent C# oracle for its expected output.
 
 ## What it does not do
 
-* It does not run analyzed files, and it has no "run", "play" or "recompile" button – nothing it could honestly offer.
+* It does not run analyzed files. The only program it ever starts is one it built itself, when you press *Play* (or `--run`).
 * It does not decrypt, unpack or circumvent protection. Encrypted containers (SELF, `~PSP`, PBP) are only *recognised*.
-* It does not disassemble whole programs, recover control flow or find function boundaries (yet).
+  No console keys, firmware or BIOS images are used or shipped.
+* It cannot run commercial games: there is no PlayStation kernel, graphics, sound, input or file layer. Only five RecompRadar
+  test system calls (exit and simple output) exist.
+* It has no PlayStation 3 or PlayStation 4 backend. Those are planned (see [milestones](#milestones-and-roadmap)); PowerPC 64
+  and x86-64 files are analyzed for the portability report only.
+* It does not produce ahead-of-time machine code. Built programs need the .NET 10 runtime and are JIT-compiled at start-up.
 * It does not know which console a file is for; it reports hints.
-* It does not translate commercial software. The MIPS proof of concept runs only small integer programs.
 
 ## Supported formats
 
@@ -120,8 +157,17 @@ dotnet publish src/RecompRadar.App -c Release -r win-x64 --self-contained false 
 .\publish\RecompRadar.exe
 ```
 
-**Command line:** `RecompRadar.exe [file] [--page=dashboard|analyzer|architecture|dependencies|report|projects|settings]`
+**Command line:** `RecompRadar.exe [file] [--page=dashboard|analyzer|architecture|disassembler|consoles|recompiler|dependencies|report|projects|settings]`
 analyzes `file` right away and optionally opens a page. The file is only read.
+
+**Recompile from the command line** (needs the .NET 10 SDK to build the generated program):
+
+```powershell
+dotnet run --project tools/RecompRadar.Cli -c Release -- recompile samples/ps2_style_selftest.elf --platform ps2 --out build/selftest --run
+```
+
+It prints the stages, the compatibility result and the path and SHA-256 of the built `.exe`, then starts it and shows its
+output. Built programs accept `--max-instructions <n>`, `--report <file.json>` and `--info`.
 
 **Try it:** the `samples/` folder has small synthetic ELF files (and deliberately damaged ones). Drop one onto the window.
 See [samples/README.md](samples/README.md).
@@ -146,10 +192,16 @@ projects target `net10.0` and build on any platform. On Linux or macOS build the
 dotnet test RecompRadar.sln -c Release
 ```
 
-There are two xUnit projects, together **226 tests** that run in about ten seconds:
+There are two xUnit projects, together **331 tests** (about 35 seconds, most of it real `dotnet build` runs of generated programs):
 
-* `tests/RecompRadar.Tests` (199 tests, any platform) covers the analysis core, storage, export and the recompilation proof of concept.
-* `tests/RecompRadar.App.Tests` (27 tests, Windows only) runs the real view models against the real pipeline and a temporary SQLite database, feeds real drag-and-drop events into the `FileDrop` behavior, and loads every page of the real window for every sample while failing on any XAML or binding error.
+* `tests/RecompRadar.Tests` (286 tests, any platform) covers the analysis core, storage, export, the MIPS plugin, the control-flow
+  analysis, the generator, the compatibility engine, and end-to-end builds: the self-made program is built into a real `.exe`, started,
+  and its output compared with an independent oracle and with the reference interpreter. Builds are skipped (and reported as skipped) if no .NET SDK is installed.
+* `tests/RecompRadar.App.Tests` (45 tests, Windows only) runs the real view models against the real pipeline and a temporary SQLite database
+  (the build system is replaced by a fake so that page logic is tested without building), feeds real drag-and-drop events into the
+  `FileDrop` behavior, and loads every page of the real window for every sample while failing on any XAML or binding error.
+
+The benchmark (`dotnet test --filter Category=Benchmark --logger "console;verbosity=detailed"`) prints the speed of the built program against the reference interpreter.
 
 Together they cover:
 
@@ -162,7 +214,10 @@ Together they cover:
   knowledge-base merging and damaged knowledge-base files;
 * report building (including "no percentages, no guarantees"), JSON/Markdown/HTML export (including hostile names), atomic file writes;
 * SQLite storage: round trips, upsert behaviour, damaged data, newer schema, concurrency, "the analyzed file is not copied";
-* the recompilation proof of concept: decoding, delay-slot semantics, loads/stores in both byte orders, faults, limits;
+* the MIPS plugin: decoding, delay-slot semantics, HI/LO, division edge cases, FPU, loads/stores in both byte orders, faults, limits;
+* control-flow analysis (functions, call graph, cross references, unresolved and resolved register jumps, limits), generator determinism and
+  injection safety, the compatibility engine (no input reaches *Supported*; a manual platform never raises the level), validation catching a
+  built program that differs from the interpreter, memory faults in built programs, reproducible hashes across folders;
 * that the committed files in `samples/` equal what the generator produces, and that the intact samples give no warnings.
 
 Not covered automatically: how the UI *looks* and a real mouse drag from Windows Explorer (the drop events themselves are tested). The
@@ -175,6 +230,9 @@ application was started and inspected for real; the screenshots in `docs/screens
 | **Dashboard** | Drop or open a file, see project statistics, recent projects and what RecompRadar can and cannot do |
 | **Binary Analyzer** | Header, segments, sections, symbols (filter, imports only), memory regions, diagnostics |
 | **Architecture Inspector** | Verified facts, target-system hints with reasons and caveats, translation notes, entry-point preview |
+| **Disassembler** | Functions, blocks, disassembly, IR, call graph, cross references, system calls, findings, what is certain and what is not |
+| **Console Backends** | Detection hints for the current file; module-by-module status of PS2, PS3, PS4 and generic MIPS32 |
+| **Recompiler & Build** | Choose a target system, read the compatibility check, Recompile, see stages and validation, Play / Stop the built program |
 | **Dependencies** | Known APIs, libraries, imported symbols (filter), hardware hints, notes |
 | **Portability Report** | The report, export as JSON / Markdown / HTML, save as project |
 | **Projects** | Reopen, rename, annotate, search and delete saved analyses |
@@ -208,14 +266,15 @@ src/
   RecompRadar.Core            models, interfaces, limits (no dependencies)
   RecompRadar.BinaryAnalysis  ELF parser, format detection, knowledge base, dependency analysis
   RecompRadar.Architectures   CPU assessment, platform heuristics
-  RecompRadar.Recompilation   plugin interfaces, IR, MIPS32 proof of concept
+  RecompRadar.Recompilation   plugin interfaces, IR, MIPS32 plugin, control-flow analysis, C# generator,
+                              .NET build and launcher, compatibility engine, pipeline
   RecompRadar.Portability     analysis pipeline, report builder, JSON/Markdown/HTML exporters
   RecompRadar.Infrastructure  SQLite store, settings, logging, paths
   RecompRadar.App             WPF application (MVVM)
 tests/        RecompRadar.Tests, RecompRadar.App.Tests (WPF), RecompRadar.TestSupport (synthetic ELF builder, MIPS mini-assembler)
-tools/        sample generator, icon and screenshot scripts
+tools/        sample generator, command-line recompiler (RecompRadar.Cli), icon and screenshot scripts
 samples/      synthetic sample files
-docs/         architecture, plugins, knowledge base, safety, screenshots
+docs/         architecture, recompilation framework, plugins, knowledge base, safety, screenshots
 ```
 
 Technology: C#, .NET 10, WPF with MVVM ([CommunityToolkit.Mvvm](https://github.com/CommunityToolkit/dotnet)),
@@ -223,14 +282,20 @@ SQLite ([Microsoft.Data.Sqlite](https://learn.microsoft.com/dotnet/standard/data
 dependencies are MIT or Apache-2.0 licensed – see [THIRD-PARTY-NOTICES.md](THIRD-PARTY-NOTICES.md).
 Details: [docs/architecture.md](docs/architecture.md).
 
-C++ and LLVM are **not** required. The plugin interfaces in `RecompRadar.Recompilation` are the place where a native
-backend (for example LLVM) would later attach.
+C++ and LLVM are **not** required. The backend generates C# and uses the .NET SDK, which is why built programs are
+"translated code with runtime (JIT)". The IR is independent of that choice: an LLVM- or NativeAOT-based backend could consume
+the same IR to produce fully native programs on machines that have the toolchain ([why](docs/recompilation.md#why-c-and-not-llvm)).
 
 ## Technical limitations
 
 * **ELF only.** Other executable formats are recognised but not parsed.
-* **No disassembly beyond the MIPS32 integer subset.** Imports show that a name is *present*, not that it is *called*.
-  Hardware access through fixed addresses cannot be seen without disassembly.
+* **Disassembly and translation exist for 32-bit MIPS only** (integer, HI/LO, single-precision FPU; no branch-likely, no 64-bit
+  or 128-bit R5900 instructions, no COP0, no vector units). Other architectures are analyzed from headers and symbols only.
+  Imports show that a name is *present*, not that it is *called*.
+* **Control flow is recovered statically.** Register jumps are resolved only when the target is a constant inside the block;
+  jump tables and function pointers loaded from memory are reported, not followed.
+* **Built programs:** translated code on the .NET JIT, .NET 10 runtime required, no self-modifying code, no graphics, audio,
+  input, files or threads. Validation covers one run, not all inputs.
 * **Platform hints are heuristics** built from public conventions (flags, address ranges, SDK names). Homebrew toolchains,
   other systems and deliberately disguised files can all produce false or missing hints. Some hint sources are shared by
   several platforms (for example `sceKernel*` names exist on PSP, Vita and PS4) and are rated accordingly.
@@ -243,21 +308,26 @@ backend (for example LLVM) would later attach.
   non-elevated Explorer does not work onto an elevated (administrator) RecompRadar window – a Windows restriction; use *Open file…* then.
 * **Windows only** for the application. The analysis libraries are cross-platform.
 
-## Roadmap
+## Milestones and roadmap
 
-1. **More input formats** as loader plugins: PS-X EXE (header only), DOL, PBP/PRX *after* the user supplies an unprotected module.
-2. **Disassembly** with a decoder per architecture; call-site analysis so that imports can be reported as *used*.
-3. **Control-flow and function discovery**, including for stripped binaries.
-4. **Richer IR and a second proof of concept** (PowerPC or MIPS with HI/LO and FPU) validated against self-made programs.
-5. **Native backend** behind `ICodeBackend` (LLVM IR emission), still verified against the reference interpreter.
-6. **Runtime layers** behind `IRuntimeCompatibilityLayer` (system calls, graphics, audio, input) for open homebrew SDKs.
-7. **Localisation** (German first), more export formats (SARIF/CSV), report comparison between two analyses.
-8. **Signed releases** and a CI pipeline (build, test, publish).
+| Milestone | Scope | Status |
+| --- | --- | --- |
+| **A – PS2 recompiler (CPU)** | analysis, IR, translator, generator, Windows build, validation, self-test, compatibility engine, UI, CLI | **Implemented** for the MIPS32 subset above |
+| **B – PS2 runtime** | EE kernel services, memory map, graphics, input, files | **Planned**, not started |
+| **C – PS3 backend** | PowerPC 64, LV2 services | **Planned**, not started |
+| **D – PS4 backend** | x86-64 loader, Orbis system layer | **Planned**, not started |
+| **E – Universal UI** | importer, disassembler, CFG, backend pages, build manager, debugger | **Partial**: Disassembler, Console Backends and Recompiler & Build exist |
+| **F – Extended compatibility** | vector units, SPU, GPU, audio | **Planned**, not started |
+| Not provided | decrypting protected files, DRM circumvention, console keys/firmware/BIOS, running commercial games | **Will not be built** |
+
+The detailed plan for the remaining milestones is in [docs/recompilation.md](docs/recompilation.md#plan-for-the-remaining-milestones).
+Other ideas: more input formats as loader plugins (PS-X EXE, DOL), localisation (German first), more export formats,
+report comparison, signed releases and a CI pipeline.
 
 ## Safety and legal
 
-RecompRadar analyzes files statically and never executes them. It contains no DRM circumvention and does not decrypt
-protected console files. The repository contains no commercial games, BIOS images, firmware, keys or other protected
+RecompRadar analyzes files statically and never executes them; the only program it starts is one it built itself. It
+contains no DRM circumvention and does not decrypt protected console files. The repository contains no commercial games, BIOS images, firmware, keys or other protected
 assets, and the knowledge base only holds plain public names. Use it only on files you are entitled to analyze.
 Details: [docs/safety-and-legal.md](docs/safety-and-legal.md).
 
@@ -267,17 +337,26 @@ License: [MIT](LICENSE). Third-party components: [THIRD-PARTY-NOTICES.md](THIRD-
 
 ## Kurzanleitung (Deutsch)
 
-**Was ist das?** RecompRadar ist ein Windows-Programm, das ausführbare Dateien (ELF) von Konsolenprogrammen statisch
-untersucht und aus tatsächlich gefundenen Fakten einen technischen Portierungsbericht erstellt. Es ist **kein**
-Recompiler: Es startet, entschlüsselt oder übersetzt keine Konsolenspiele.
+**Was ist das?** RecompRadar untersucht ausführbare Dateien (ELF) von Konsolenprogrammen statisch und erstellt aus den
+tatsächlich gefundenen Fakten einen technischen Portierungsbericht. Seit Version 3.0 kann es außerdem den Kontrollfluss eines
+**selbst geschriebenen 32-Bit-MIPS-Programms** (die CPU-Familie der PlayStation 2) analysieren, daraus ein echtes
+**Windows-Programm** bauen, dieses gegen einen Referenz-Interpreter prüfen und starten.
+
+**Ehrlich zum Stand:** Das gebaute Programm ist *übersetzter Code, der auf dem .NET-JIT läuft* – nicht „nativ“ im Sinne von
+vorab erzeugtem Maschinencode – und braucht die .NET-10-Laufzeit. Es gibt **keine Konsolen-Laufzeit** (kein PS2/PS3/PS4-Kernel,
+keine Grafik, kein Ton, keine Eingabe); kommerzielle Spiele laufen damit **nicht**. PS3 und PS4 sind geplant, nicht umgesetzt.
+RecompRadar entschlüsselt nichts, umgeht keinen Kopierschutz und enthält keine Konsolen-Schlüssel, Firmware oder Spieldaten.
 
 **Starten unter Windows 10/11 (x64):**
 
 1. [.NET 10 SDK](https://dotnet.microsoft.com/download) installieren.
 2. Im Projektordner `dotnet run --project src/RecompRadar.App -c Release` ausführen
    (oder `dotnet build RecompRadar.sln -c Release` und danach `src\RecompRadar.App\bin\Release\net10.0-windows\RecompRadar.exe` starten).
-3. Eine Datei aus `samples\` auf das Fenster ziehen oder über *Open file…* öffnen.
-4. Ergebnisse auf den Seiten *Binary Analyzer*, *Architecture Inspector*, *Dependencies* und *Portability Report* ansehen;
-   den Bericht als JSON, Markdown oder HTML exportieren. Analysen werden unter *Projects* gespeichert.
+3. `samples\ps2_style_selftest.elf` auf das Fenster ziehen oder über *Open file…* öffnen.
+4. Seite *Recompiler & Build*: Zielsystem wählen (ändert nie die Kompatibilitätsstufe), Prüfergebnis lesen, **Recompile**
+   drücken, danach **Play**. Ist eine Schaltfläche gesperrt, steht der genaue Grund darunter.
+5. Dieselbe Pipeline auf der Kommandozeile:
+   `dotnet run --project tools/RecompRadar.Cli -c Release -- recompile samples/ps2_style_selftest.elf --platform ps2 --out build/selftest --run`
 
-**Tests:** `dotnet test RecompRadar.sln -c Release`. Die Oberfläche ist derzeit englisch.
+**Tests:** `dotnet test RecompRadar.sln -c Release` (331 Tests). Die Oberfläche ist derzeit englisch.
+Stand der Meilensteine und genauer Plan für den Rest: [docs/recompilation.md](docs/recompilation.md).
