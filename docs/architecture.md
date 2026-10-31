@@ -36,7 +36,7 @@ WPF shell builds and is tested on any platform.
 | `RecompRadar.Core` | Result model (`AnalysisResult`, `ElfFile`, `PortabilityReport`, ...), interfaces (`IAnalysisPipeline`, `IProjectStore`, `IPlatformHeuristic`, `IReportExporter`), `AnalysisLimits`, diagnostics | nothing |
 | `RecompRadar.BinaryAnalysis` | Bounds-checked ELF parser, format detection, string scanner, knowledge base, dependency analyzer | Core |
 | `RecompRadar.Architectures` | CPU architecture assessment, MIPS flag decoding, platform heuristics (PS1/PS2/PS3/PS4/PSP/GameCube/Wii/Linux) | Core |
-| `RecompRadar.Recompilation` | Plugin interfaces, 32-bit IR, MIPS32 decoder/translator, control-flow analysis (`Analysis`), C# generator (`Generation`), .NET build and launcher (`Build`), compatibility engine and console backend registry (`Compatibility`), the whole pipeline (`Pipeline`), reference interpreter (`Execution`) | Core |
+| `RecompRadar.Recompilation` | Plugin interfaces, 64-bit IR, MIPS32/R5900 decoder/translator, control-flow analysis (`Analysis`), C# generator (`Generation`), .NET build and launcher (`Build`), compatibility engine and console backend registry (`Compatibility`), the whole pipeline (`Pipeline`), reference interpreter (`Execution`) | Core |
 | `RecompRadar.Portability` | `AnalysisPipeline` orchestration, report builder, exporters | Core, BinaryAnalysis, Architectures, Recompilation |
 | `RecompRadar.Infrastructure` | SQLite project store, settings, paths, structured logging | Core |
 | `RecompRadar.App` | WPF shell: MVVM view models, dark theme, drag and drop; pages for analysis, disassembly, console backends and the recompiler | all of the above |

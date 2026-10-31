@@ -49,13 +49,14 @@ public static class MipsRegisters
 }
 
 /// <summary>
-/// Decoder for the integer, HI/LO and single-precision FPU subset of MIPS32 that RecompRadar can translate.
-/// Instructions that are valid MIPS but not translated (for example branch-likely) are still named, so reports can say
-/// exactly what is missing; everything else is shown as an unknown word instead of being guessed.
+/// Decoder for the integer (including the 64-bit MIPS III instructions of the R5900), HI/LO and single-precision FPU subset
+/// that RecompRadar can translate. Instructions that are valid but not translated (for example branch-likely or the unaligned
+/// and 128-bit memory instructions) are still named, so reports can say exactly what is missing; everything else is shown as
+/// an unknown word instead of being guessed.
 /// </summary>
 public sealed class MipsDecoder : IArchitectureDecoder
 {
-    public string Name => "MIPS32 integer/FPU subset decoder";
+    public string Name => "MIPS32/R5900 integer and FPU subset decoder";
 
     public DecodedInstruction? Decode(IMemoryReader memory, Endianness endianness, ulong address)
     {
@@ -70,12 +71,35 @@ public sealed class MipsDecoder : IArchitectureDecoder
     }
 
     /// <summary>Mnemonics that are decoded but have no translation yet; the translator reports them as unsupported.</summary>
-    internal static bool IsDecodedButUntranslated(uint raw)
+    internal static bool IsDecodedButUntranslated(uint raw) => UntranslatedDetail(raw) is not null;
+
+    /// <summary>Why a recognised instruction is not translated, or null when it is translated or not recognised at all.</summary>
+    internal static string? UntranslatedDetail(uint raw)
     {
         var w = new MipsWord(raw);
-        return w.Op is 0x14 or 0x15 or 0x16 or 0x17
+        if (w.Op is 0x14 or 0x15 or 0x16 or 0x17
             || (w.Op == 0x01 && w.Rt is 0x02 or 0x03 or 0x12 or 0x13)
-            || (w.Op == 0x11 && w.Fmt == 8 && w.Rt is 2 or 3);
+            || (w.Op == 0x11 && w.Fmt == 8 && w.Rt is 2 or 3))
+        {
+            return "branch-likely instructions are not supported yet";
+        }
+
+        if (w.Op is 0x1A or 0x1B or 0x22 or 0x26 or 0x2A or 0x2C or 0x2D or 0x2E)
+        {
+            return "unaligned loads and stores are not supported yet";
+        }
+
+        if (w.Op is 0x1E or 0x1F)
+        {
+            return "128-bit loads and stores are not supported; only the low 64 bits of the R5900 registers are modelled";
+        }
+
+        if (w.Op == 0 && w.Funct is 0x1C or 0x1D or 0x1E or 0x1F)
+        {
+            return "64-bit multiply and divide are not supported yet";
+        }
+
+        return null;
     }
 
     internal static DecodedInstruction DecodeWord(uint raw, ulong pc)
@@ -115,6 +139,9 @@ public sealed class MipsDecoder : IArchitectureDecoder
                     case 0x0C: return Make("syscall", "", InstructionKind.Syscall);
                     case 0x0D: return Make("break", "");
                     case 0x0F: return Make("sync", "");
+                    case 0x14: return Make("dsllv", $"{R(w.Rd)}, {R(w.Rt)}, {R(w.Rs)}");
+                    case 0x16: return Make("dsrlv", $"{R(w.Rd)}, {R(w.Rt)}, {R(w.Rs)}");
+                    case 0x17: return Make("dsrav", $"{R(w.Rd)}, {R(w.Rt)}, {R(w.Rs)}");
                     case 0x10: return Make("mfhi", R(w.Rd));
                     case 0x11: return Make("mthi", R(w.Rs));
                     case 0x12: return Make("mflo", R(w.Rd));
@@ -123,6 +150,10 @@ public sealed class MipsDecoder : IArchitectureDecoder
                     case 0x19: return Make("multu", w.Rd == 0 ? $"{R(w.Rs)}, {R(w.Rt)}" : R3());
                     case 0x1A: return Make("div", $"{R(w.Rs)}, {R(w.Rt)}");
                     case 0x1B: return Make("divu", $"{R(w.Rs)}, {R(w.Rt)}");
+                    case 0x1C: return Make("dmult", $"{R(w.Rs)}, {R(w.Rt)}");
+                    case 0x1D: return Make("dmultu", $"{R(w.Rs)}, {R(w.Rt)}");
+                    case 0x1E: return Make("ddiv", $"{R(w.Rs)}, {R(w.Rt)}");
+                    case 0x1F: return Make("ddivu", $"{R(w.Rs)}, {R(w.Rt)}");
                     case 0x20: return Make("add", R3());
                     case 0x21: return Make("addu", R3());
                     case 0x22: return Make("sub", R3());
@@ -133,6 +164,16 @@ public sealed class MipsDecoder : IArchitectureDecoder
                     case 0x27: return Make("nor", R3());
                     case 0x2A: return Make("slt", R3());
                     case 0x2B: return Make("sltu", R3());
+                    case 0x2C: return Make("dadd", R3());
+                    case 0x2D: return Make("daddu", R3());
+                    case 0x2E: return Make("dsub", R3());
+                    case 0x2F: return Make("dsubu", R3());
+                    case 0x38: return Make("dsll", $"{R(w.Rd)}, {R(w.Rt)}, {w.Sa}");
+                    case 0x3A: return Make("dsrl", $"{R(w.Rd)}, {R(w.Rt)}, {w.Sa}");
+                    case 0x3B: return Make("dsra", $"{R(w.Rd)}, {R(w.Rt)}, {w.Sa}");
+                    case 0x3C: return Make("dsll32", $"{R(w.Rd)}, {R(w.Rt)}, {w.Sa}");
+                    case 0x3E: return Make("dsrl32", $"{R(w.Rd)}, {R(w.Rt)}, {w.Sa}");
+                    case 0x3F: return Make("dsra32", $"{R(w.Rd)}, {R(w.Rt)}, {w.Sa}");
                     default: return Unknown();
                 }
 
@@ -193,19 +234,34 @@ public sealed class MipsDecoder : IArchitectureDecoder
             case 0x0D: return Make("ori", $"{R(w.Rt)}, {R(w.Rs)}, 0x{w.Imm:X}");
             case 0x0E: return Make("xori", $"{R(w.Rt)}, {R(w.Rs)}, 0x{w.Imm:X}");
             case 0x0F: return Make("lui", $"{R(w.Rt)}, 0x{w.Imm:X}");
+            case 0x18: return Make("daddi", $"{R(w.Rt)}, {R(w.Rs)}, {w.SImm}");
+            case 0x19: return Make("daddiu", $"{R(w.Rt)}, {R(w.Rs)}, {w.SImm}");
+            case 0x1A: return Make("ldl", Mem());
+            case 0x1B: return Make("ldr", Mem());
+            case 0x1E: return Make("lq", Mem());
+            case 0x1F: return Make("sq", Mem());
             case 0x11: return DecodeCop1(w, raw, pc);
             case 0x20: return Make("lb", Mem());
             case 0x21: return Make("lh", Mem());
             case 0x23: return Make("lw", Mem());
+            case 0x22: return Make("lwl", Mem());
             case 0x24: return Make("lbu", Mem());
             case 0x25: return Make("lhu", Mem());
+            case 0x26: return Make("lwr", Mem());
+            case 0x27: return Make("lwu", Mem());
             case 0x28: return Make("sb", Mem());
             case 0x29: return Make("sh", Mem());
+            case 0x2A: return Make("swl", Mem());
             case 0x2B: return Make("sw", Mem());
+            case 0x2C: return Make("sdl", Mem());
+            case 0x2D: return Make("sdr", Mem());
+            case 0x2E: return Make("swr", Mem());
             case 0x2F: return Make("cache", "");
             case 0x31: return Make("lwc1", $"{Fp(w.Ft)}, {w.SImm}({R(w.Rs)})");
             case 0x33: return Make("pref", "");
+            case 0x37: return Make("ld", Mem());
             case 0x39: return Make("swc1", $"{Fp(w.Ft)}, {w.SImm}({R(w.Rs)})");
+            case 0x3F: return Make("sd", Mem());
             default: return Unknown();
         }
     }

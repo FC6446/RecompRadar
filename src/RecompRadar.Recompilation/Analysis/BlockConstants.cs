@@ -1,4 +1,5 @@
 using RecompRadar.Recompilation.IR;
+using RecompRadar.Semantics;
 
 namespace RecompRadar.Recompilation.Analysis;
 
@@ -9,11 +10,11 @@ namespace RecompRadar.Recompilation.Analysis;
 /// </summary>
 public static class BlockConstants
 {
-    public static IReadOnlyDictionary<int, uint> AtEnd(IrBlock block)
+    public static IReadOnlyDictionary<int, ulong> AtEnd(IrBlock block)
     {
-        var known = new Dictionary<int, uint>();
+        var known = new Dictionary<int, ulong>();
 
-        bool Get(IrValue value, out uint result)
+        bool Get(IrValue value, out ulong result)
         {
             if (value.IsImmediate)
             {
@@ -37,12 +38,18 @@ public static class BlockConstants
                 continue;
             }
 
-            uint? value = null;
+            ulong? value = null;
             if (!IrInstruction.IsLoad(i.Op) && Get(i.A, out var a))
             {
                 if (IrInstruction.IsUnary(i.Op))
                 {
-                    value = i.Op is IrOp.Const or IrOp.Move ? a : null;
+                    value = i.Op switch
+                    {
+                        IrOp.Const or IrOp.Move => a,
+                        IrOp.Sext32 => Sem.Sx((uint)a),
+                        IrOp.Zext32 => (uint)a,
+                        _ => null,
+                    };
                 }
                 else if (Get(i.B, out var b))
                 {
@@ -55,9 +62,15 @@ public static class BlockConstants
                         IrOp.Or => a | b,
                         IrOp.Xor => a ^ b,
                         IrOp.Nor => ~(a | b),
-                        IrOp.Shl => a << (int)(b & 31),
-                        IrOp.Shr => a >> (int)(b & 31),
-                        IrOp.Sar => (uint)((int)a >> (int)(b & 31)),
+                        IrOp.Shl => a << (int)(b & 63),
+                        IrOp.Shr => a >> (int)(b & 63),
+                        IrOp.Sar => unchecked((ulong)((long)a >> (int)(b & 63))),
+                        IrOp.AddW => Sem.Sx(unchecked((uint)(a + b))),
+                        IrOp.SubW => Sem.Sx(unchecked((uint)(a - b))),
+                        IrOp.MulW => Sem.Sx(unchecked((uint)(a * b))),
+                        IrOp.ShlW => Sem.Sx((uint)a << (int)(b & 31)),
+                        IrOp.ShrW => Sem.Sx((uint)a >> (int)(b & 31)),
+                        IrOp.SarW => Sem.Sx(unchecked((uint)((int)(uint)a >> (int)(b & 31)))),
                         _ => null,
                     };
                 }

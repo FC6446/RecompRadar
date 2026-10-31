@@ -152,6 +152,75 @@ public sealed class Ps2Memory
         }
     }
 
+    public ulong Load64(uint address)
+    {
+        if (address % 8 != 0)
+        {
+            throw _fault($"Unaligned 8-byte read at 0x{address:X8}.");
+        }
+
+        switch (Locate(address, 8, out var offset))
+        {
+            case Area.Ram:
+                return Read64(_ram, (int)offset);
+            case Area.Scratchpad:
+                return Read64(_scratchpad, (int)offset);
+            case Area.Io:
+                throw _fault($"Read of the I/O register 0x{ToPhysical(address):X8}: only the serial port is modelled.");
+            default:
+                throw _fault($"Read of 8 byte(s) at unmapped address 0x{address:X8}.");
+        }
+    }
+
+    public void Store64(uint address, ulong value)
+    {
+        if (address % 8 != 0)
+        {
+            throw _fault($"Unaligned 8-byte write at 0x{address:X8}.");
+        }
+
+        switch (Locate(address, 8, out var offset))
+        {
+            case Area.Ram:
+                foreach (var (start, end) in _code)
+                {
+                    if (offset < end && offset + 8 > start)
+                    {
+                        throw _fault($"Write to executable memory at 0x{address:X8}: self-modifying code is not supported.");
+                    }
+                }
+
+                Write64(_ram, (int)offset, value);
+                break;
+            case Area.Scratchpad:
+                Write64(_scratchpad, (int)offset, value);
+                break;
+            case Area.Io:
+                throw _fault($"Write to the I/O register 0x{ToPhysical(address):X8}: only the serial port is modelled.");
+            default:
+                throw _fault($"Write of 8 byte(s) at unmapped address 0x{address:X8}.");
+        }
+    }
+
+    private ulong Read64(byte[] data, int offset)
+    {
+        ulong value = 0;
+        for (var i = 0; i < 8; i++)
+        {
+            value = (value << 8) | data[offset + (_little ? 7 - i : i)];
+        }
+
+        return value;
+    }
+
+    private void Write64(byte[] data, int offset, ulong value)
+    {
+        for (var i = 0; i < 8; i++)
+        {
+            data[offset + (_little ? i : 7 - i)] = (byte)(value >> (8 * i));
+        }
+    }
+
     /// <summary>Reads one byte of RAM or scratchpad for instruction fetch and strings; -1 when the address is not backed by memory.</summary>
     public int TryReadByte(uint address)
     {
@@ -363,7 +432,7 @@ public sealed class Ps2Kernel
         public uint Argument;
         public bool Fresh;
         public int WakeupCount;
-        public uint[]? Saved;
+        public ulong[]? Saved;
         public uint ResumePc;
         public Sema? Waiting;
     }
@@ -393,14 +462,14 @@ public sealed class Ps2Kernel
     public int CurrentThreadId => _current.Id;
 
     /// <summary>The thread function returned (or the program jumped to <see cref="ThreadExitAddress"/>): same as ExitThread.</summary>
-    public Ps2Result ThreadReturned(uint[] r) => EndCurrentThread(r, delete: false);
+    public Ps2Result ThreadReturned(ulong[] r) => EndCurrentThread(r, delete: false);
 
     /// <summary>Performs the kernel call selected by the number in $v1 (r[3]); arguments are in r[4].. and the result goes to r[2].</summary>
-    public Ps2Result Handle(uint[] r, uint continuation)
+    public Ps2Result Handle(ulong[] r, uint continuation)
     {
-        var number = unchecked((int)r[3]);
-        var a0 = r[4];
-        var a1 = r[5];
+        var number = unchecked((int)(uint)r[3]);
+        var a0 = (uint)r[4];
+        var a1 = (uint)r[5];
         switch (number)
         {
             case KExit:
@@ -517,7 +586,7 @@ public sealed class Ps2Kernel
                 {
                     if (_current.Priority == (int)a0)
                     {
-                        r[2] = a0;
+                        r[2] = Sx(a0);
                         Save(_current, r, continuation);
                         _current.State = State.Ready;
                         _ready.Add(_current);
@@ -666,6 +735,9 @@ public sealed class Ps2Kernel
 
     private const uint Failure = 0xFFFFFFFF;
 
+    /// <summary>Sign-extends a 32-bit value to the 64-bit register width (kernel results and addresses are held that way).</summary>
+    private static ulong Sx(uint value) => unchecked((ulong)(long)(int)value);
+
     private static Ps2Result Fault(string message) => new(Ps2Action.Fault, Message: message);
 
     private Thread? FindThread(uint id) => id >= 1 && id <= MaxThreads ? _threads[id] : null;
@@ -718,9 +790,9 @@ public sealed class Ps2Kernel
         return best;
     }
 
-    private static void Save(Thread t, uint[] r, uint resumePc)
+    private static void Save(Thread t, ulong[] r, uint resumePc)
     {
-        t.Saved = (uint[])r.Clone();
+        t.Saved = (ulong[])r.Clone();
         t.ResumePc = resumePc;
     }
 
@@ -736,14 +808,14 @@ public sealed class Ps2Kernel
     private void Wake(Thread t, uint value)
     {
         Detach(t);
-        t.Saved![2] = value;
+        t.Saved![2] = Sx(value);
         MakeReady(t);
     }
 
     /// <summary>Finishes a call that leaves the caller runnable; a higher-priority ready thread preempts it.</summary>
-    private Ps2Result Return(uint[] r, uint value, uint continuation)
+    private Ps2Result Return(ulong[] r, uint value, uint continuation)
     {
-        r[2] = value;
+        r[2] = Sx(value);
         var best = PickReady();
         if (best is not null && best.Priority < _current.Priority)
         {
@@ -766,9 +838,9 @@ public sealed class Ps2Kernel
         return new Ps2Result(Ps2Action.Continue, continuation);
     }
 
-    private Ps2Result Block(uint[] r, uint continuation, State state, Sema? sema, uint resumeValue)
+    private Ps2Result Block(ulong[] r, uint continuation, State state, Sema? sema, uint resumeValue)
     {
-        r[2] = resumeValue;
+        r[2] = Sx(resumeValue);
         Save(_current, r, continuation);
         _current.State = state;
         _current.Waiting = sema;
@@ -776,7 +848,7 @@ public sealed class Ps2Kernel
         return SwitchAway(r);
     }
 
-    private Ps2Result EndCurrentThread(uint[] r, bool delete)
+    private Ps2Result EndCurrentThread(ulong[] r, bool delete)
     {
         var finished = _current;
         finished.State = State.Dormant;
@@ -791,7 +863,7 @@ public sealed class Ps2Kernel
     }
 
     /// <summary>The running thread cannot continue: run the best ready thread, or end the program when none can run.</summary>
-    private Ps2Result SwitchAway(uint[] r)
+    private Ps2Result SwitchAway(ulong[] r)
     {
         var next = PickReady();
         if (next is not null)
@@ -810,7 +882,7 @@ public sealed class Ps2Kernel
         return new Ps2Result(Ps2Action.Exit, ExitCode: 0, Message: "All threads have exited. A real console would idle here; the program ends instead.");
     }
 
-    private Ps2Result Dispatch(Thread next, uint[] r)
+    private Ps2Result Dispatch(Thread next, ulong[] r)
     {
         _ready.Remove(next);
         next.State = State.Running;
@@ -819,10 +891,10 @@ public sealed class Ps2Kernel
         {
             next.Fresh = false;
             Array.Clear(r);
-            r[4] = next.Argument;
-            r[28] = next.Gp;
-            r[29] = next.StackTop;
-            r[31] = ThreadExitAddress;
+            r[4] = Sx(next.Argument);
+            r[28] = Sx(next.Gp);
+            r[29] = Sx(next.StackTop);
+            r[31] = Sx(ThreadExitAddress);
             return new Ps2Result(Ps2Action.Continue, next.Entry);
         }
 

@@ -88,6 +88,52 @@ public static class Sem
 
     public static uint FLe(uint a, uint b) => F(a) <= F(b) ? 1u : 0u;
 
+    // ---- 64-bit register file ----
+    // Registers are 64 bits wide. The integer multiply/divide and floating-point operations above work on the low 32 bits of
+    // their operands: integer results are sign-extended to 64 bits (as MIPS64 does for 32-bit results), floating-point results
+    // keep the raw 32 bits with zero upper bits.
+
+    /// <summary>Sign-extends a 32-bit value to the register width.</summary>
+    public static ulong Sx(uint value) => unchecked((ulong)(long)(int)value);
+
+    public static ulong MulHiS(ulong a, ulong b) => Sx(MulHiS((uint)a, (uint)b));
+
+    public static ulong MulHiU(ulong a, ulong b) => Sx(MulHiU((uint)a, (uint)b));
+
+    public static ulong DivS(ulong a, ulong b) => Sx(DivS((uint)a, (uint)b));
+
+    public static ulong RemS(ulong a, ulong b) => Sx(RemS((uint)a, (uint)b));
+
+    public static ulong DivU(ulong a, ulong b) => Sx(DivU((uint)a, (uint)b));
+
+    public static ulong RemU(ulong a, ulong b) => Sx(RemU((uint)a, (uint)b));
+
+    public static ulong FAdd(ulong a, ulong b) => FAdd((uint)a, (uint)b);
+
+    public static ulong FSub(ulong a, ulong b) => FSub((uint)a, (uint)b);
+
+    public static ulong FMul(ulong a, ulong b) => FMul((uint)a, (uint)b);
+
+    public static ulong FDiv(ulong a, ulong b) => FDiv((uint)a, (uint)b);
+
+    public static ulong FSqrt(ulong a) => FSqrt((uint)a);
+
+    public static ulong FAbs(ulong a) => FAbs((uint)a);
+
+    public static ulong FNeg(ulong a) => FNeg((uint)a);
+
+    public static ulong CvtSW(ulong a) => CvtSW((uint)a);
+
+    public static ulong CvtWS(ulong a) => CvtWS((uint)a);
+
+    public static ulong TruncWS(ulong a) => TruncWS((uint)a);
+
+    public static ulong FEq(ulong a, ulong b) => FEq((uint)a, (uint)b);
+
+    public static ulong FLt(ulong a, ulong b) => FLt((uint)a, (uint)b);
+
+    public static ulong FLe(ulong a, ulong b) => FLe((uint)a, (uint)b);
+
     /// <summary>Text a floating-point value gets when a program prints it through the proof-of-concept system call.</summary>
     public static string FormatFloat(uint bits) => F(bits).ToString("R", CultureInfo.InvariantCulture);
 }

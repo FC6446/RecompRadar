@@ -161,7 +161,7 @@ internal sealed class FakeRecompiler : IRecompilerService
         }
 
         return new LaunchResult(0, "hello from the built program\n", "a warning\n", false, false, TimeSpan.FromMilliseconds(5),
-            new RunReport("Exited", 0, 1234, null, "hello from the built program\n", new uint[128], 1.5));
+            new RunReport("Exited", 0, 1234, null, "hello from the built program\n", new ulong[128], 1.5));
     }
 
     public RecompileResult Succeeded(RecompileRequest request)

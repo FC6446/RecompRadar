@@ -47,11 +47,11 @@ public static class ConsoleBackendRegistry
             Ps2, "PlayStation 2 (Emotion Engine, MIPS R5900)", "MIPS32 little-endian (R5900)", "A (CPU pipeline) done, B (runtime) started",
             "The CPU pipeline works for self-made programs: analysis, translation, a real Windows program and validation against a reference interpreter. " +
             "The runtime is a start: EE memory map, serial text output and a few kernel calls. There is no graphics, sound, input or file layer, " +
-            "and the R5900's 64-bit and 128-bit instructions are missing, so no real PS2 software can run.",
+            "and the R5900's 128-bit, unaligned and multimedia instructions are missing, so no real PS2 software can run.",
             [
                 new("ELF loader", ModuleState.Implemented, "Maps the loadable segments of a 32-bit MIPS ELF. No IRX/IOP modules, no relocation of dynamic objects."),
-                new("Instruction decoder", ModuleState.Partial, "MIPS32 integer instructions, HI/LO, conditional moves, jump-and-link, single-precision FPU. Missing: branch-likely, unaligned loads/stores, 64-bit R5900 instructions, 128-bit MMI, COP0, VU0 macro mode."),
-                new("IR translator", ModuleState.Partial, "Same subset as the decoder. Branch delay slots are folded into blocks; add/sub overflow traps are not modelled; the FPU uses IEEE-754 single precision, not the R5900's reduced-precision FPU."),
+                new("Instruction decoder", ModuleState.Partial, "MIPS32 and 64-bit (MIPS III) integer instructions, HI/LO, conditional moves, jump-and-link, single-precision FPU. Missing: branch-likely, unaligned loads/stores, 64-bit multiply/divide, 128-bit lq/sq and MMI, COP0, VU0 macro mode."),
+                new("IR translator", ModuleState.Partial, "Same subset as the decoder, on 64-bit registers (32-bit instructions sign-extend their results). Branch delay slots are folded into blocks; add/sub overflow traps are not modelled; only the low 64 bits of the R5900's 128-bit registers exist; the FPU uses IEEE-754 single precision, not the R5900's reduced-precision FPU."),
                 new("Control-flow analysis", ModuleState.Implemented, "Basic blocks, functions, call graph and cross references by recursive descent. Register jumps and jump tables are reported, not resolved."),
                 new("Code generator and Windows build", ModuleState.Implemented, "Translates blocks to C#, builds a Windows program with the .NET SDK. The result is translated code on the .NET JIT, not ahead-of-time machine code."),
                 new("Validation against reference interpreter", ModuleState.Implemented, "Compares end state, output, instruction count and registers for one run."),
@@ -74,7 +74,7 @@ public static class ConsoleBackendRegistry
             [
                 new("ELF analysis (portability report only)", ModuleState.Implemented, "Header, segments, symbols and dependencies are read. No loader for recompilation."),
                 new("PowerPC 64 decoder and VMX/AltiVec", ModuleState.Planned, "Milestone C."),
-                new("PowerPC 64 to IR translator and backend", ModuleState.Planned, "Milestone C; 64-bit registers need an IR extension."),
+                new("PowerPC 64 to IR translator and backend", ModuleState.Planned, "Milestone C; the IR already has 64-bit registers."),
                 new("SPU (Cell SPE) support", ModuleState.Planned, "Milestone F."),
                 new("LV2 kernel services", ModuleState.Planned, "Milestone C."),
                 new("RSX graphics", ModuleState.Planned, "Milestone F."),

@@ -47,7 +47,7 @@ public static class DifferentialValidator
                 var actual = i < native.Registers.Count ? native.Registers[i] : 0;
                 if (expected != actual)
                 {
-                    differences.Add($"Register {Regs.Name(i)}: reference 0x{expected:X8}, built program 0x{actual:X8}.");
+                    differences.Add($"Register {Regs.Name(i)}: reference 0x{expected:X16}, built program 0x{actual:X16}.");
                 }
             }
         }
